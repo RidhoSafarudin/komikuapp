@@ -15,12 +15,12 @@ class _SignInPageState extends State<SignInPage> {
   void _handleSignIn() {
     if (_formKey.currentState!.validate()) {
       // Dummy auth logic
-      if (_emailController.text == 'test@example.com' &&
+      if (_emailController.text == 'ridho@ex.com' &&
           _passwordController.text == 'password123') {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("Login Successful")));
-        Navigator.pushReplacementNamed(context, '/dashboard'); // dummy page
+        Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Invalid email or password")),

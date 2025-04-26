@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'features/home_page.dart';
 import 'features/signup_page.dart';
 import 'features/signin_page.dart';
-import 'features/dummy_dashboard.dart'; // Import the dummy dashboard page
+import 'features/dashboard_page.dart';
 
 void main() {
   runApp(const MyKisahApp());
@@ -19,7 +19,7 @@ class MyKisahApp extends StatelessWidget {
       routes: {
         '/signup': (context) => const SignUpPage(),
         '/signin': (context) => const SignInPage(),
-        '/dashboard': (context) => const DummyDashboard(),
+        '/dashboard': (context) => const DashboardPage(),
       },
     );
   }
