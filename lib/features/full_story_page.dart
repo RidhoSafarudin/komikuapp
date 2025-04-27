@@ -78,12 +78,48 @@ class FullStoryPage extends StatelessWidget {
                 backgroundImage: AssetImage(avatar),
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _navigateToUserPage(context),
+              child: Text(
+                user,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueAccent,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  genre,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
             const Text(
               'Sinopsis:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
