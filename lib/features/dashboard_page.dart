@@ -4,6 +4,7 @@ import 'full_story_page.dart';
 import 'profile.dart';
 import 'tentang_kami.dart';
 import 'tulisan_page.dart';
+import 'search.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -13,6 +14,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  int _selectedIndex = 0;
   final TextEditingController _commentController = TextEditingController();
 
   final List<Map<String, String>> posts = [
@@ -191,6 +193,23 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SearchPage()),
+      );
+    } else if (index == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const TulisanPage()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -302,6 +321,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         fullStory: post['fullStory']!,
                         user: post['user']!,
                         avatar: post['avatar']!,
+                        genre: post['genre']!,
                       ),
                 ),
               );
@@ -403,13 +423,9 @@ class _DashboardPageState extends State<DashboardPage> {
           BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.edit), label: ''),
         ],
+        currentIndex: _selectedIndex,
         onTap: (index) {
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const TulisanPage()),
-            );
-          }
+          _onItemTapped(index);
         },
       ),
     );
