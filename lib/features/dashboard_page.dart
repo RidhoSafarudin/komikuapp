@@ -4,6 +4,7 @@ import 'full_story_page.dart';
 import 'profile.dart';
 import 'tentang_kami.dart';
 import 'tulisan_page.dart';
+import 'search.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -13,33 +14,34 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  int _selectedIndex = 0;
   final TextEditingController _commentController = TextEditingController();
 
   final List<Map<String, String>> posts = [
     {
       'user': 'ZFAR',
       'title': 'KISAH JEKY',
+      'genre': 'Petualangan',
       'synopsis': 'Ini adalah kisah tentang Jeky yang penuh petualangan.',
-      'fullStory':
-          'Ini adalah kisah lengkap tentang Jeky. Dia memulai perjalanan panjangnya dari sebuah desa kecil, menghadapi berbagai rintangan dan bertemu banyak karakter menarik sepanjang perjalanannya...',
+      'fullStory': 'Dini hari yang sunyi di bulan Ramadan, terdengar suara "tung... tung..." dari ujung kampung. Itu adalah suara kentongan yang dibunyikan oleh Pak Kades berkeliling membangunkan warga untuk sahur. Aku terbangun dengan mata masih berat, tapi aroma sedap dari dapur segera menyadarkanku. Ibu sudah bangun lebih awal, menyiapkan nasi liwet dengan lauk tempe orek kesukaanku.Dari jendela, kulihat bayangan Pak Kades dengan lampu temploknya yang redup. Suara kentongannya kadang diselingi dengan teriakan, "Sahur... sahur...!" yang menggema di udara dingin. Beberapa tetangga mulai menyalakan lampu rumah mereka satu persatu, seperti kunang-kunang yang bangun di malam hari. Aku tersenyum mengingat bagaimana tradisi sederhana ini selalu membuat bulan puasa terasa begitu istimewa.',
       'time': '1 jam yang lalu',
       'avatar': 'assets/avatar1.png',
     },
     {
       'user': 'Inra',
       'title': 'KISAH Inra',
+      'genre': 'Inspirasi',
       'synopsis': 'Perjalanan hidup Inra yang penuh inspirasi dan semangat.',
-      'fullStory':
-          'Inra tumbuh dalam lingkungan yang penuh tantangan. Meskipun banyak halangan, dia terus maju untuk meraih mimpinya dan menginspirasi banyak orang dengan kisah hidupnya yang penuh harapan...',
+      'fullStory': 'Kisah lengkap Inra...',
       'time': '3 jam yang lalu',
       'avatar': 'assets/avatar2.png',
     },
     {
       'user': 'This is Loli',
       'title': 'KISAH Ridho',
+      'genre': 'Petualangan',
       'synopsis': 'Kisah unik tentang Ridho dan pencariannya akan kebenaran.',
-      'fullStory':
-          'Ridho selalu bertanya-tanya tentang makna hidup. Dalam perjalanannya, ia menjelajah dunia, berbincang dengan orang-orang bijak, hingga akhirnya menemukan makna sejati dari kehidupan...',
+      'fullStory': 'Kisah lengkap Ridho...',
       'time': '5 jam yang lalu',
       'avatar': 'assets/avatar3.png',
     },
@@ -191,6 +193,23 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SearchPage()),
+      );
+    } else if (index == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const TulisanPage()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -302,6 +321,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         fullStory: post['fullStory']!,
                         user: post['user']!,
                         avatar: post['avatar']!,
+                        genre: post['genre']!,
                       ),
                 ),
               );
@@ -403,13 +423,9 @@ class _DashboardPageState extends State<DashboardPage> {
           BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.edit), label: ''),
         ],
+        currentIndex: _selectedIndex,
         onTap: (index) {
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const TulisanPage()),
-            );
-          }
+          _onItemTapped(index);
         },
       ),
     );

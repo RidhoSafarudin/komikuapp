@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'edit_cerita_page.dart'; // jangan lupa buat file ini
 
 class TulisanPage extends StatefulWidget {
   const TulisanPage({super.key});
@@ -7,8 +8,7 @@ class TulisanPage extends StatefulWidget {
   State<TulisanPage> createState() => _TulisanPageState();
 }
 
-class _TulisanPageState extends State<TulisanPage>
-    with SingleTickerProviderStateMixin {
+class _TulisanPageState extends State<TulisanPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   final TextEditingController _judulController = TextEditingController();
@@ -27,6 +27,30 @@ class _TulisanPageState extends State<TulisanPage>
   ];
 
   List<String> selectedGenres = [];
+
+  List<Map<String, String>> stories = [
+    {
+      'title': 'KISAH Saya',
+      'time': '20 menit yang lalu',
+      'sinopsis': 'Ini sinopsis pertama',
+      'fullStory': 'Ini cerita lengkap pertama',
+      'genres': 'Romance, Action'
+    },
+    {
+      'title': 'KISAH Adik Saya',
+      'time': '30 menit yang lalu',
+      'sinopsis': 'Ini sinopsis kedua',
+      'fullStory': 'Ini cerita lengkap kedua',
+      'genres': 'Fantasi, Misteri'
+    },
+    {
+      'title': 'KISAH Jeky',
+      'time': '1 jam yang lalu',
+      'sinopsis': 'Ini sinopsis ketiga',
+      'fullStory': 'Ini cerita lengkap ketiga',
+      'genres': 'Petualangan'
+    },
+  ];
 
   @override
   void initState() {
@@ -53,6 +77,34 @@ class _TulisanPageState extends State<TulisanPage>
     });
   }
 
+  void _showDeleteConfirmation(BuildContext context, int index) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Hapus'),
+          content: const Text('Apakah Anda yakin ingin menghapus cerita ini?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('No'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  stories.removeAt(index);
+                });
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              child: const Text('Yes'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,23 +127,18 @@ class _TulisanPageState extends State<TulisanPage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildListView(isTerbaru: true), // Terbaru
-          _buildListView(isTerbaru: false), // Terlama
-          _buildFormTulisBaru(), // Tulis Baru
+          _buildListView(isTerbaru: true),
+          _buildListView(isTerbaru: false),
+          _buildFormTulisBaru(),
         ],
       ),
     );
   }
 
   Widget _buildListView({required bool isTerbaru}) {
-    List<Map<String, String>> stories = [
-      {'title': 'KISAH Saya', 'time': '20 menit yang lalu'},
-      {'title': 'KISAH Adit Saya', 'time': '30 menit yang lalu'},
-      {'title': 'KISAH Jeky', 'time': '1 jam yang lalu'},
-    ];
-
+    List<Map<String, String>> sortedStories = List.from(stories);
     if (!isTerbaru) {
-      stories = List.from(stories.reversed);
+      sortedStories = List.from(stories.reversed);
     }
 
     return Column(
@@ -101,8 +148,8 @@ class _TulisanPageState extends State<TulisanPage>
           child: TextField(
             decoration: InputDecoration(
               hintText: 'Search',
-              prefixIcon: Icon(Icons.search),
-              suffixIcon: IconButton(icon: Icon(Icons.close), onPressed: () {}),
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: IconButton(icon: const Icon(Icons.close), onPressed: () {}),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(30),
               ),
@@ -111,9 +158,9 @@ class _TulisanPageState extends State<TulisanPage>
         ),
         Expanded(
           child: ListView.builder(
-            itemCount: stories.length,
+            itemCount: sortedStories.length,
             itemBuilder: (context, index) {
-              final story = stories[index];
+              final story = sortedStories[index];
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Padding(
@@ -122,37 +169,72 @@ class _TulisanPageState extends State<TulisanPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            story['title']!,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            story['time']!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  story['title'] ?? '',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  story['time'] ?? '',
+                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                              ],
                             ),
+                          ),
+                          PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => EditCeritaPage(
+                                      story: story,
+                                      onSave: (editedStory) {
+                                        setState(() {
+                                          stories[index] = editedStory;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              } else if (value == 'hapus') {
+                                _showDeleteConfirmation(context, index);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Edit'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'hapus',
+                                child: Text('Hapus'),
+                              ),
+                            ],
+                            icon: const Icon(Icons.more_vert),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: const [
-                          Chip(label: Text('Genre')),
-                          SizedBox(width: 5),
-                          Chip(label: Text('Genre')),
-                        ],
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        children: (story['genres'] ?? '')
+                            .split(', ')
+                            .map((genre) => Chip(label: Text(genre)))
+                            .toList(),
                       ),
                       const SizedBox(height: 4),
                       const Text(
                         'Sinopsis:',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      const Text(
-                        'Lorem ipsum dolor sit amet, consectetur adipiscing elit...',
-                      ),
+                      Text(story['sinopsis'] ?? 'Tidak ada sinopsis.'),
                       const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -191,16 +273,15 @@ class _TulisanPageState extends State<TulisanPage>
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children:
-                genres.map((genre) {
-                  final isSelected = selectedGenres.contains(genre);
-                  return ChoiceChip(
-                    label: Text(genre),
-                    selected: isSelected,
-                    selectedColor: Colors.blue.shade100,
-                    onSelected: (_) => toggleGenre(genre),
-                  );
-                }).toList(),
+            children: genres.map((genre) {
+              final isSelected = selectedGenres.contains(genre);
+              return ChoiceChip(
+                label: Text(genre),
+                selected: isSelected,
+                selectedColor: Colors.blue.shade100,
+                onSelected: (_) => toggleGenre(genre),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -217,7 +298,7 @@ class _TulisanPageState extends State<TulisanPage>
             controller: _ceritaController,
             maxLines: 10,
             decoration: const InputDecoration(
-              hintText: 'Tulis cerita...',
+              hintText: 'Tulis cerita lengkap...',
               border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.add),
             ),
@@ -230,7 +311,7 @@ class _TulisanPageState extends State<TulisanPage>
                 backgroundColor: Colors.blue.shade100,
               ),
               onPressed: () {
-                // Dummy Logic
+                // Dummy save
                 print('Judul: ${_judulController.text}');
                 print('Genres: $selectedGenres');
                 print('Sinopsis: ${_sinopsisController.text}');
