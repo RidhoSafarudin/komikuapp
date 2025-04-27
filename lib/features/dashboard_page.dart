@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'full_story_page.dart';
+import 'profile.dart';
+import 'tentang_kami.dart';
+import 'tulisan_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -169,8 +172,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   'user': 'You',
                                   'time': 'baru saja',
                                   'text': _commentController.text,
-                                  'avatar':
-                                      'assets/your_avatar.png', // You can set your default avatar
+                                  'avatar': 'assets/your_avatar.png',
                                 });
                                 _commentController.clear();
                               });
@@ -192,24 +194,98 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        elevation: 1,
-        leading: IconButton(
-          icon: const Icon(Icons.person, color: Colors.black),
-          onPressed: () {},
-        ),
-        title: Center(
-          child: Padding(
-            padding: const EdgeInsets.only(
-              right: 40,
-            ), // Adjust center because of leading icon
-            child: Image.asset('assets/logoh.png', width: 100),
+      drawer: Drawer(
+        child: Container(
+          color: Colors.lightBlue[100],
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              const SizedBox(height: 40),
+              ListTile(
+                leading: Icon(Icons.arrow_back),
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 20),
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: Colors.black12,
+                child: Icon(Icons.person, size: 50),
+              ),
+              const SizedBox(height: 10),
+              const Center(child: Text('No Name')),
+              const Center(
+                child: Text('Online', style: TextStyle(color: Colors.green)),
+              ),
+              const Divider(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'Pengaturan',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                title: const Text('Profile akun'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const EditProfilePage()),
+                  );
+                },
+              ),
+              const Divider(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'Lainnya',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                title: const Text('Tentang Kami'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyKisahPage()),
+                  );
+                },
+              ),
+              ListTile(
+                title: const Text(
+                  'Logout',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {},
+              ),
+            ],
           ),
         ),
       ),
 
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.white,
+        elevation: 1,
+        leading: Builder(
+          builder:
+              (context) => IconButton(
+                icon: const Icon(Icons.person, color: Colors.black),
+                onPressed: () {
+                  Scaffold.of(context).openDrawer();
+                },
+              ),
+        ),
+        title: Center(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 40),
+            child: Image.asset('assets/logoh.png', width: 100),
+          ),
+        ),
+      ),
       body: ListView.builder(
         itemCount: posts.length,
         itemBuilder: (context, index) {
@@ -327,6 +403,14 @@ class _DashboardPageState extends State<DashboardPage> {
           BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.edit), label: ''),
         ],
+        onTap: (index) {
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TulisanPage()),
+            );
+          }
+        },
       ),
     );
   }
