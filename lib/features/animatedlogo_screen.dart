@@ -58,21 +58,14 @@ class _AnimatedLogoScreenState extends State<AnimatedLogoScreen>
       setState(() {});
     });
 
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 1000), () {
       setState(() {
         _showLogo = true;
         _opacityController.forward();
       });
     });
 
-    Future.delayed(const Duration(seconds: 1, milliseconds: 500), () {
-      setState(() {
-        _showLogo = false;
-        _opacityController.reverse();
-        _fullScreenScaleController.forward();
-        _animateFullScreen = true;
-      });
-    });
+    
 
     Future.delayed(const Duration(seconds: 2), () {
       if (!_navigationDone) {

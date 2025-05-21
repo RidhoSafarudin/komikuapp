@@ -40,27 +40,28 @@ class FullStoryPage extends StatelessWidget {
             onPressed: () {
               showDialog(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Laporkan Postingan'),
-                  content: const Text('Laporkan postingan ini?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Tidak'),
+                builder:
+                    (context) => AlertDialog(
+                      title: const Text('Laporkan Postingan'),
+                      content: const Text('Laporkan postingan ini?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Tidak'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Postingan telah dilaporkan.'),
+                              ),
+                            );
+                          },
+                          child: const Text('Ya'),
+                        ),
+                      ],
                     ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Postingan telah dilaporkan.'),
-                          ),
-                        );
-                      },
-                      child: const Text('Ya'),
-                    ),
-                  ],
-                ),
               );
             },
           ),
@@ -105,7 +106,10 @@ class FullStoryPage extends StatelessWidget {
             const SizedBox(height: 8),
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.blueAccent,
                   borderRadius: BorderRadius.circular(20),

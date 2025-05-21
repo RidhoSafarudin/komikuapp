@@ -115,11 +115,7 @@ class _SearchPageState extends State<SearchPage> {
     final List<String> filters = ['Judul', 'Penulis', 'Genre'];
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        title: const Text('Cari Cerita', style: TextStyle(color: Colors.black)),
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
+      
       body: Column(
         children: [
           Padding(
@@ -129,12 +125,16 @@ class _SearchPageState extends State<SearchPage> {
               decoration: InputDecoration(
                 hintText: 'Cari cerita...',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    _searchController.clear();
-                  },
-                ),
+                suffixIcon: _searchController.text.isNotEmpty
+    ? IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () {
+          _searchController.clear();
+          _searchPosts(); // Optional: langsung update hasil
+        },
+      )
+    : null,
+
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),

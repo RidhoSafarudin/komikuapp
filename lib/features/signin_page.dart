@@ -19,7 +19,7 @@ class _SignInPageState extends State<SignInPage> {
           _passwordController.text == 'password123') {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text("Login Successful")));
+        );
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

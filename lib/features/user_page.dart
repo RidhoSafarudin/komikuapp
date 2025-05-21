@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'full_story_page.dart'; 
+import 'full_story_page.dart';
 
 class UserPage extends StatefulWidget {
   final String user;
@@ -11,10 +11,12 @@ class UserPage extends StatefulWidget {
   State<UserPage> createState() => _UserPageState();
 }
 
-class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin {
+class _UserPageState extends State<UserPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool isFollowing = false;
+  int followersCount = 120; // contoh data awal
 
- 
   final List<Map<String, String>> allPosts = [
     {
       'user': 'ZFAR',
@@ -53,6 +55,12 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
       'avatar': 'assets/avatar3.png',
     },
   ];
+  void toggleFollow() {
+    setState(() {
+      isFollowing = !isFollowing;
+      followersCount += isFollowing ? 1 : -1;
+    });
+  }
 
   @override
   void initState() {
@@ -61,11 +69,9 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
   }
 
   List<Map<String, String>> getUserPosts({required bool terbaru}) {
-    
     List<Map<String, String>> userPosts =
         allPosts.where((post) => post['user'] == widget.user).toList();
 
-    
     if (terbaru) {
       userPosts = userPosts.reversed.toList();
     }
@@ -78,14 +84,15 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => FullStoryPage(
-              title: post['title'] ?? '',
-              synopsis: post['synopsis'] ?? '',
-              fullStory: post['fullStory'] ?? 'Belum ada cerita lengkap.',
-              user: post['user'] ?? '',
-              avatar: post['avatar'] ?? 'assets/default_avatar.png',
-              genre: post['genre'] ?? 'Genre',
-            ),
+            builder:
+                (_) => FullStoryPage(
+                  title: post['title'] ?? '',
+                  synopsis: post['synopsis'] ?? '',
+                  fullStory: post['fullStory'] ?? 'Belum ada cerita lengkap.',
+                  user: post['user'] ?? '',
+                  avatar: post['avatar'] ?? 'assets/default_avatar.png',
+                  genre: post['genre'] ?? 'Genre',
+                ),
           ),
         );
       },
@@ -98,9 +105,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundImage: AssetImage(post['avatar']!),
-                  ),
+                  CircleAvatar(backgroundImage: AssetImage(post['avatar']!)),
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,7 +116,10 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                       ),
                       Text(
                         post['time'] ?? '',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -120,18 +128,33 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
               const SizedBox(height: 12),
               Text(
                 post['title']!,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(height: 4),
-              const Text('Sinopsis:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Sinopsis:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               Text(post['synopsis']!),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  IconButton(icon: const Icon(Icons.thumb_up_alt_outlined), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.thumb_down_alt_outlined), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.comment_outlined), onPressed: () {}),
+                  IconButton(
+                    icon: const Icon(Icons.thumb_up_alt_outlined),
+                    onPressed: () {},
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.thumb_down_alt_outlined),
+                    onPressed: () {},
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.comment_outlined),
+                    onPressed: () {},
+                  ),
                   IconButton(icon: const Icon(Icons.share), onPressed: () {}),
                 ],
               ),
@@ -159,38 +182,70 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
           labelColor: Colors.black,
           unselectedLabelColor: Colors.grey,
           indicatorColor: Colors.black,
-          tabs: const [
-            Tab(text: 'Terbaru'),
-            Tab(text: 'Terlama'),
-          ],
+          tabs: const [Tab(text: 'Terbaru'), Tab(text: 'Terlama')],
         ),
       ),
       body: Column(
         children: [
           const SizedBox(height: 16),
-          CircleAvatar(
-            radius: 40,
-            backgroundImage: AssetImage(widget.avatar),
-          ),
+          CircleAvatar(radius: 40, backgroundImage: AssetImage(widget.avatar)),
           const SizedBox(height: 8),
           Text(
             '@${widget.user}',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
+
+          //  Follow button + follower count
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: toggleFollow,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      isFollowing ? Colors.grey[400] : Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
+                ),
+                child: Text(isFollowing ? 'Following' : 'Follow'),
+              ),
+              const SizedBox(width: 16),
+              Row(
+                children: [
+                  const Icon(Icons.group, size: 18, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$followersCount Followers',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
           const Text('Bio', style: TextStyle(fontSize: 14)),
           const Divider(height: 32, thickness: 1),
+
+          // posts
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                // Tab Terbaru
                 ListView(
-                  children: getUserPosts(terbaru: false).map(buildPostCard).toList(),
+                  children:
+                      getUserPosts(terbaru: false).map(buildPostCard).toList(),
                 ),
-                // Tab Terlama
                 ListView(
-                  children: getUserPosts(terbaru: true).map(buildPostCard).toList(),
+                  children:
+                      getUserPosts(terbaru: true).map(buildPostCard).toList(),
                 ),
               ],
             ),
