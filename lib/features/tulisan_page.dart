@@ -96,6 +96,8 @@ class _TulisanPageState extends State<TulisanPage> {
           jsonResponse['message'] ?? 'Kisah berhasil dipublikasikan!',
         );
         _clearForm();
+      } else if (response.statusCode == 422 && jsonResponse['error'] == 'Content validation failed') {
+        _showContentWarningDialog(jsonResponse['messages']['isi']);
       } else {
         _showError(jsonResponse['message'] ?? 'Gagal mempublikasikan kisah');
       }
@@ -145,6 +147,27 @@ class _TulisanPageState extends State<TulisanPage> {
     );
   }
 
+  void _showContentWarningDialog(String warningMessage) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Peringatan Konten'),
+          content: Text(warningMessage),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Mengerti'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _judulController.dispose();
@@ -155,16 +178,29 @@ class _TulisanPageState extends State<TulisanPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tulis Kisah Baru'),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 1,
-        foregroundColor: Colors.black,
-        automaticallyImplyLeading: false,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (bool didPop) async {
+        if (!didPop) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Tulis Kisah Baru'),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 1,
+          foregroundColor: Colors.black,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+        body: _buildFormTulisBaru(),
       ),
-      body: _buildFormTulisBaru(),
     );
   }
 
@@ -186,16 +222,15 @@ class _TulisanPageState extends State<TulisanPage> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children:
-                genres.map((genre) {
-                  final isSelected = selectedGenres.contains(genre);
-                  return ChoiceChip(
-                    label: Text(genre),
-                    selected: isSelected,
-                    selectedColor: Colors.blue.shade100,
-                    onSelected: (_) => toggleGenre(genre),
-                  );
-                }).toList(),
+            children: genres.map((genre) {
+              final isSelected = selectedGenres.contains(genre);
+              return ChoiceChip(
+                label: Text(genre),
+                selected: isSelected,
+                selectedColor: Colors.blue.shade100,
+                onSelected: (_) => toggleGenre(genre),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -220,17 +255,16 @@ class _TulisanPageState extends State<TulisanPage> {
           const SizedBox(height: 20),
           Align(
             alignment: Alignment.centerRight,
-            child:
-                _isLoading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _publishStory,
-                      child: const Text('Publish'),
+            child: _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
                     ),
+                    onPressed: _publishStory,
+                    child: const Text('Publish'),
+                  ),
           ),
         ],
       ),
