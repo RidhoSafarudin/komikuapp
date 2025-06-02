@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -9,13 +10,14 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
-
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
 
-  void _handleSignUp() {
+  Future<void> _handleSignUp() async {
     if (_formKey.currentState!.validate()) {
       if (_passwordController.text != _confirmPasswordController.text) {
         ScaffoldMessenger.of(
@@ -24,12 +26,30 @@ class _SignUpPageState extends State<SignUpPage> {
         return;
       }
 
-      // Simulate sign-up success (replace with real logic later)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Account created successfully!")),
+      setState(() {
+        _isLoading = true;
+      });
+
+      final result = await _authService.register(
+        _nameController.text,
+        _emailController.text,
+        _passwordController.text,
       );
 
-      Navigator.pop(context); // Go back to sign in page
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Account created successfully!")),
+        );
+        Navigator.pop(context); // Go back to sign in page
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result['message'])));
+      }
     }
   }
 
@@ -39,7 +59,6 @@ class _SignUpPageState extends State<SignUpPage> {
       body: Column(
         children: [
           const SizedBox(height: 40),
-          // Back arrow
           Padding(
             padding: const EdgeInsets.only(left: 16.0),
             child: Align(
@@ -52,7 +71,6 @@ class _SignUpPageState extends State<SignUpPage> {
               ),
             ),
           ),
-          // Logo
           Center(
             child: Image.asset(
               'assets/logoh.png',
@@ -61,7 +79,6 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
           ),
           const SizedBox(height: 20),
-          // Gradient container
           Expanded(
             child: Container(
               width: double.infinity,
@@ -96,6 +113,12 @@ class _SignUpPageState extends State<SignUpPage> {
                         label: 'Nama',
                         hint: 'Nama',
                         controller: _nameController,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Name is required';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       _buildTextField(
@@ -103,6 +126,17 @@ class _SignUpPageState extends State<SignUpPage> {
                         hint: 'Email',
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Email is required';
+                          }
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value)) {
+                            return 'Enter a valid email';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       _buildTextField(
@@ -110,6 +144,15 @@ class _SignUpPageState extends State<SignUpPage> {
                         hint: 'Password',
                         controller: _passwordController,
                         obscureText: true,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Password is required';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       _buildTextField(
@@ -117,6 +160,15 @@ class _SignUpPageState extends State<SignUpPage> {
                         hint: 'Confirm Password',
                         controller: _confirmPasswordController,
                         obscureText: true,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          if (value != _passwordController.text) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 20),
                       const Text('OR', style: TextStyle(color: Colors.white)),
@@ -124,7 +176,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       _buildGoogleButton(),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: _handleSignUp,
+                        onPressed: _isLoading ? null : _handleSignUp,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(
@@ -135,10 +187,18 @@ class _SignUpPageState extends State<SignUpPage> {
                             borderRadius: BorderRadius.circular(25),
                           ),
                         ),
-                        child: const Text(
-                          'Sign Up',
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
+                        child:
+                            _isLoading
+                                ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                                : const Text(
+                                  'Sign Up',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
                       ),
                       const SizedBox(height: 20),
                       GestureDetector(
@@ -171,6 +231,7 @@ class _SignUpPageState extends State<SignUpPage> {
     required TextEditingController controller,
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
+    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,8 +256,9 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
           ),
           validator:
-              (value) =>
-                  value == null || value.isEmpty ? '$label is required' : null,
+              validator ??
+              ((value) =>
+                  value == null || value.isEmpty ? '$label is required' : null),
         ),
       ],
     );
@@ -205,7 +267,6 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget _buildGoogleButton() {
     return ElevatedButton.icon(
       onPressed: () {
-        // Google sign in logic (to be added)
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Google sign-in tapped')));

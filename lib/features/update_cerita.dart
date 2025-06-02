@@ -4,11 +4,7 @@ class EditCeritaPage extends StatefulWidget {
   final Map<String, String> story;
   final Function(Map<String, String>) onSave;
 
-  const EditCeritaPage({
-    super.key,
-    required this.story,
-    required this.onSave,
-  });
+  const EditCeritaPage({super.key, required this.story, required this.onSave});
 
   @override
   State<EditCeritaPage> createState() => _EditCeritaPageState();
@@ -92,15 +88,16 @@ class _EditCeritaPageState extends State<EditCeritaPage> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: genres.map((genre) {
-                final isSelected = selectedGenres.contains(genre);
-                return ChoiceChip(
-                  label: Text(genre),
-                  selected: isSelected,
-                  selectedColor: Colors.blue.shade100,
-                  onSelected: (_) => toggleGenre(genre),
-                );
-              }).toList(),
+              children:
+                  genres.map((genre) {
+                    final isSelected = selectedGenres.contains(genre);
+                    return ChoiceChip(
+                      label: Text(genre),
+                      selected: isSelected,
+                      selectedColor: Colors.blue.shade100,
+                      onSelected: (_) => toggleGenre(genre),
+                    );
+                  }).toList(),
             ),
             const SizedBox(height: 12),
             TextField(

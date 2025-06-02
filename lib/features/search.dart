@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:test_komikuapp/services/auth_service.dart';
 import 'full_story_page.dart';
+import 'user_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -10,8 +14,15 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
+  final AuthService _authService = AuthService();
   int selectedFilterIndex = 0;
   List<String> selectedGenres = [];
+  bool _isLoading = false;
+  List<dynamic> _posts = [];
+  List<dynamic> _filteredPosts = [];
+
+  // Add this to track if widget is still mounted
+  bool _isDisposed = false;
 
   final List<String> genres = [
     'Romance',
@@ -24,89 +35,232 @@ class _SearchPageState extends State<SearchPage> {
     'Petualangan',
   ];
 
-  final List<Map<String, String>> posts = [
-    {
-      'user': 'ZFAR',
-      'title': 'KISAH JEKY',
-      'genre': 'Petualangan',
-      'synopsis': 'Ini adalah kisah tentang Jeky yang penuh petualangan.',
-      'fullStory': 'Ini kisah lengkap Jeky...',
-      'time': '1 jam yang lalu',
-      'avatar': 'assets/avatar1.png',
-    },
-    {
-      'user': 'Inra',
-      'title': 'KISAH Inra',
-      'genre': 'Romance',
-      'synopsis': 'Perjalanan cinta Inra yang penuh tantangan.',
-      'fullStory': 'Kisah lengkap Inra...',
-      'time': '3 jam yang lalu',
-      'avatar': 'assets/avatar2.png',
-    },
-    {
-      'user': 'This is Loli',
-      'title': 'KISAH Ridho',
-      'genre': 'Misteri',
-      'synopsis': 'Kisah misterius tentang Ridho.',
-      'fullStory': 'Kisah lengkap Ridho...',
-      'time': '5 jam yang lalu',
-      'avatar': 'assets/avatar3.png',
-    },
-  ];
-
-  List<Map<String, String>> filteredPosts = [];
-
   @override
   void initState() {
     super.initState();
-    filteredPosts = posts;
+    _fetchAllStories();
     _searchController.addListener(_searchPosts);
   }
 
+  Future<void> _fetchAllStories() async {
+    // Check if widget is still mounted before calling setState
+    if (_isDisposed || !mounted) return;
+    
+    setState(() => _isLoading = true);
+
+    try {
+      final token = await _authService.getToken();
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/kisah/search'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      // Check again before calling setState
+      if (_isDisposed || !mounted) return;
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        
+        // Debug: Print first few items to see structure
+        if (data.isNotEmpty) {
+          print('Sample data structure:');
+          print(data.first);
+          print('Available keys: ${data.first.keys.toList()}');
+        }
+        
+        // Final check before setState
+        if (_isDisposed || !mounted) return;
+        
+        setState(() {
+          _posts = data;
+          _filteredPosts = data;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to load stories');
+      }
+    } catch (e) {
+      // Check before calling setState
+      if (_isDisposed || !mounted) return;
+      
+      setState(() => _isLoading = false);
+      
+      // Check before showing SnackBar
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      }
+    }
+  }
+
   void _searchPosts() {
+    // Check if widget is still mounted
+    if (_isDisposed || !mounted) return;
+    
     String query = _searchController.text.toLowerCase();
 
     setState(() {
       if (selectedFilterIndex == 0) {
-        // Search by Title
-        filteredPosts =
-            posts.where((post) {
-              return post['title']!.toLowerCase().contains(query);
-            }).toList();
+        // Judul tab
+        _filteredPosts = _posts.where((post) {
+          final judul = (post['judul'] ?? '').toLowerCase();
+          return judul.contains(query);
+        }).toList();
       } else if (selectedFilterIndex == 1) {
-        // Search by Author
-        filteredPosts =
-            posts.where((post) {
-              return post['user']!.toLowerCase().contains(query);
-            }).toList();
+        // Penulis tab - Show all matching authors (with duplicates removed manually)
+        List<dynamic> matchingPosts = _posts.where((post) {
+          final penulis = (post['user_name'] ?? '').toLowerCase();
+          return penulis.contains(query);
+        }).toList();
+        
+        // Remove duplicates based on user_name and user_id
+        Map<String, dynamic> seenUsers = {};
+        List<dynamic> uniqueUsers = [];
+        
+        for (var post in matchingPosts) {
+          String userKey = '${post['user_id'] ?? 0}_${post['user_name'] ?? ''}';
+          if (!seenUsers.containsKey(userKey)) {
+            seenUsers[userKey] = true;
+            uniqueUsers.add({
+              'user_id': post['user_id'],
+              'user_name': post['user_name'],
+              'user_avatar': post['user_avatar'],
+              'id': post['id'],
+            });
+          }
+        }
+        
+        _filteredPosts = uniqueUsers;
+        print('Found ${matchingPosts.length} matching posts, ${uniqueUsers.length} unique users');
       } else {
-        // Filter by Genre
+        // Genre tab
         if (selectedGenres.isEmpty) {
-          filteredPosts = posts;
+          _filteredPosts = _posts;
         } else {
-          filteredPosts =
-              posts.where((post) {
-                return selectedGenres.contains(post['genre']);
-              }).toList();
+          _filteredPosts = _posts.where((post) {
+            final List<dynamic> postGenres = post['genres'] ?? [];
+            return selectedGenres.any(
+              (genre) => postGenres.contains(genre),
+            );
+          }).toList();
         }
       }
     });
   }
 
   void _toggleGenreSelection(String genre) {
+    // Check if widget is still mounted
+    if (_isDisposed || !mounted) return;
+    
     setState(() {
-      if (selectedGenres.contains(genre)) {
-        selectedGenres.remove(genre);
-      } else {
-        selectedGenres.add(genre);
-      }
+      selectedGenres.contains(genre)
+          ? selectedGenres.remove(genre)
+          : selectedGenres.add(genre);
       _searchPosts();
     });
   }
 
+  Widget _buildUserCard(dynamic post) {
+    final avatar = (post['user_avatar'] != null && post['user_avatar'].isNotEmpty)
+        ? NetworkImage(post['user_avatar'])
+        : const AssetImage('assets/default_avatar.png') as ImageProvider;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundImage: avatar,
+          radius: 25,
+        ),
+        title: Text(
+          post['user_name'] ?? 'Anonim',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: Text('@${post['user_name'] ?? 'anonim'}'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          // Check if widget is still mounted before navigation
+          if (!mounted) return;
+          
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => UserPage(
+                userId: post['user_id'] ?? 0,
+                userName: post['user_name'] ?? 'Anonim',
+                userAvatar: post['user_avatar'] ?? '',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStoryCard(dynamic post) {
+    final avatar = (post['user_avatar'] != null && post['user_avatar'].isNotEmpty)
+        ? NetworkImage(post['user_avatar'])
+        : const AssetImage('assets/default_avatar.png') as ImageProvider;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        leading: CircleAvatar(backgroundImage: avatar),
+        title: Text(
+          post['judul'] ?? 'Tanpa Judul',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Penulis: ${post['user_name'] ?? 'Anonim'}'),
+            Text(
+              'Genre: ${(post['genres'] as List<dynamic>? ?? []).join(', ')}',
+            ),
+          ],
+        ),
+        isThreeLine: true,
+        onTap: () {
+          // Check if widget is still mounted before navigation
+          if (!mounted) return;
+          
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => FullStoryPage(
+                title: post['judul'] ?? 'Tanpa Judul',
+                genre: (post['genres'] as List<dynamic>? ?? []).join(', '),
+                synopsis: post['sinopsis'] ?? 'Tidak ada sinopsis',
+                fullStory: post['isi'] ?? 'Tidak ada konten',
+                user: post['user_name'] ?? 'Anonim',
+                avatar: post['user_avatar'] ?? '',
+                kisahId: post['id'] ?? 0,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    // Mark as disposed to prevent setState calls
+    _isDisposed = true;
+    
+    // Remove listener before disposing controller
+    _searchController.removeListener(_searchPosts);
+    
+    // Dispose the controller
     _searchController.dispose();
+    
     super.dispose();
   }
 
@@ -115,7 +269,6 @@ class _SearchPageState extends State<SearchPage> {
     final List<String> filters = ['Judul', 'Penulis', 'Genre'];
 
     return Scaffold(
-      
       body: Column(
         children: [
           Padding(
@@ -123,18 +276,21 @@ class _SearchPageState extends State<SearchPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Cari cerita...',
+                hintText: selectedFilterIndex == 0
+                    ? 'Cari berdasarkan judul...'
+                    : selectedFilterIndex == 1
+                        ? 'Cari penulis...'
+                        : 'Pilih genre...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
-    ? IconButton(
-        icon: const Icon(Icons.close),
-        onPressed: () {
-          _searchController.clear();
-          _searchPosts(); // Optional: langsung update hasil
-        },
-      )
-    : null,
-
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _searchController.clear();
+                          _searchPosts();
+                        },
+                      )
+                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -151,11 +307,12 @@ class _SearchPageState extends State<SearchPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: GestureDetector(
                     onTap: () {
+                      // Check if widget is still mounted
+                      if (!mounted) return;
+                      
                       setState(() {
                         selectedFilterIndex = index;
-                        if (index != 2) {
-                          selectedGenres.clear();
-                        }
+                        if (index != 2) selectedGenres.clear();
                         _searchPosts();
                       });
                     },
@@ -165,8 +322,7 @@ class _SearchPageState extends State<SearchPage> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color:
-                            isSelected ? Colors.blueAccent : Colors.grey[200],
+                        color: isSelected ? Colors.blueAccent : Colors.grey[200],
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -182,7 +338,7 @@ class _SearchPageState extends State<SearchPage> {
               }),
             ),
           ),
-          const SizedBox(height: 20), // Tambahkan jarak antar filter dan genre
+          const SizedBox(height: 20),
           if (selectedFilterIndex == 2)
             Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -190,83 +346,60 @@ class _SearchPageState extends State<SearchPage> {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                children:
-                    genres.map((genre) {
-                      bool isSelected = selectedGenres.contains(genre);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () => _toggleGenreSelection(genre),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  isSelected
-                                      ? Colors.blueAccent
-                                      : Colors.grey[200],
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              genre,
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                children: genres.map((genre) {
+                  bool isSelected = selectedGenres.contains(genre);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => _toggleGenreSelection(genre),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.blueAccent
+                              : Colors.grey[200],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          genre,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
           const SizedBox(height: 10),
           Expanded(
-            child:
-                filteredPosts.isEmpty
-                    ? const Center(
-                      child: Text(
-                        'Cerita tidak ditemukan.',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    )
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredPosts.isEmpty
+                    ? Center(
+                        child: Text(
+                          selectedFilterIndex == 1
+                              ? 'Penulis tidak ditemukan.'
+                              : 'Cerita tidak ditemukan.',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      )
                     : ListView.builder(
-                      itemCount: filteredPosts.length,
-                      itemBuilder: (context, index) {
-                        final post = filteredPosts[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundImage: AssetImage(post['avatar']!),
-                            ),
-                            title: Text(post['title']!),
-                            subtitle: Text('Genre: ${post['genre']}'),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => FullStoryPage(
-                                        title: post['title']!,
-                                        genre: post['genre']!,
-                                        synopsis: post['synopsis']!,
-                                        fullStory: post['fullStory']!,
-                                        user: post['user']!,
-                                        avatar: post['avatar']!,
-                                      ),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                        itemCount: _filteredPosts.length,
+                        itemBuilder: (context, index) {
+                          final post = _filteredPosts[index];
+                          
+                          // Show user card for author search, story card for others
+                          return selectedFilterIndex == 1
+                              ? _buildUserCard(post)
+                              : _buildStoryCard(post);
+                        },
+                      ),
           ),
         ],
       ),

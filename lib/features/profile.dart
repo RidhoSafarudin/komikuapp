@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'edit_profile_page.dart';
-import 'edit_cerita_page.dart'; // Buat halaman ini jika belum ada
+import 'edit_cerita_page.dart';
+import '../services/auth_service.dart';
+import 'full_story_page.dart'; // Import FullStoryPage
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -11,42 +15,252 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
-  String username = 'username';
-  String bio = 'Bio pengguna';
-  int followers = 124;
-  int following = 89;
-  String avatar = 'assets/avatar1.png';
+  String username = '';
+  int followers = 0;
+  int following = 0;
+  String? avatarUrl;
+  bool isLoading = true;
 
   late TabController _tabController;
+  final AuthService _authService = AuthService();
 
-  List<Map<String, String>> posts = [
-    {
-      'title': 'KISAH Saya',
-      'time': '20 menit yang lalu',
-      'sinopsis': 'Ini sinopsis pertama',
-      'fullStory': 'Ini cerita lengkap pertama',
-      'genres': 'Romance, Action',
-    },
-    {
-      'title': 'KISAH Adik Saya',
-      'time': '30 menit yang lalu',
-      'sinopsis': 'Ini sinopsis kedua',
-      'fullStory': 'Ini cerita lengkap kedua',
-      'genres': 'Fantasi, Misteri',
-    },
-    {
-      'title': 'KISAH Jeky',
-      'time': '1 jam yang lalu',
-      'sinopsis': 'Ini sinopsis ketiga',
-      'fullStory': 'Ini cerita lengkap ketiga',
-      'genres': 'Petualangan',
-    },
-  ];
+  List<Map<String, dynamic>> posts = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final profileResult = await _getUserProfile();
+      
+      if (profileResult['success'] == true && profileResult['user'] != null) {
+        final userData = profileResult['user'];
+        
+        final Future<Map<String, dynamic>> followersResult = _getFollowers();
+        final Future<Map<String, dynamic>> followingResult = _getFollowing();
+        
+        final results = await Future.wait([followersResult, followingResult]);
+        final followersData = results[0];
+        final followingData = results[1];
+        
+        setState(() {
+          username = userData['name'] ?? '';
+          avatarUrl = userData['avatar_url'];
+          
+          if (followersData['success'] == true && followersData['followers'] != null) {
+            final followersArray = followersData['followers'];
+            followers = followersArray is List ? followersArray.length : 0;
+          } else {
+            followers = 0;
+          }
+          
+          if (followingData['success'] == true && followingData['following'] != null) {
+            final followingArray = followingData['following'];
+            following = followingArray is List ? followingArray.length : 0;
+          } else {
+            following = 0;
+          }
+          
+          if (profileResult['kisah'] != null) {
+            posts = (profileResult['kisah'] as List).map((kisah) {
+              return {
+                'id': kisah['id'],
+                'title': kisah['judul'] ?? '',
+                'time': _formatTime(kisah['created_at']),
+                'created_at': kisah['created_at'],
+                'sinopsis': kisah['sinopsis'] ?? 'Tidak ada sinopsis.',
+                'fullStory': kisah['isi'] ?? '', // Use 'isi' field for full story
+                'genres': (kisah['genres'] as List?)?.join(', ') ?? '',
+                'user_id': kisah['user_id'] ?? 0, // Add user_id for navigation
+              };
+            }).toList();
+            
+            posts.sort((a, b) {
+              final aTime = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
+              final bTime = DateTime.tryParse(b['created_at'] ?? '') ?? DateTime(1970);
+              return bTime.compareTo(aTime);
+            });
+          }
+          
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(profileResult['message'] ?? 'Failed to load profile data'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading profile: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _getUserProfile() async {
+    try {
+      final token = await _authService.getToken();
+      
+      if (token == null) {
+        return {'success': false, 'message': 'No token found'};
+      }
+
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/me'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return {
+          'success': true, 
+          'user': responseData['user'],
+          'kisah': responseData['kisah']
+        };
+      } else {
+        return {'success': false, 'message': 'Failed to get user data'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error: ${e.toString()}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> _getFollowers() async {
+    try {
+      final token = await _authService.getToken();
+      
+      if (token == null) {
+        return {'success': false, 'message': 'No token found'};
+      }
+      
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/followers'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        
+        dynamic followersData;
+        if (responseData is Map && responseData.containsKey('followers')) {
+          followersData = responseData['followers'];
+        } else if (responseData is List) {
+          followersData = responseData;
+        } else if (responseData is Map && responseData.containsKey('data')) {
+          followersData = responseData['data'];
+        } else {
+          followersData = responseData;
+        }
+        
+        return {
+          'success': true, 
+          'followers': followersData
+        };
+      } else {
+        return {'success': false, 'message': 'Failed to get followers data: ${response.statusCode}'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error: ${e.toString()}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> _getFollowing() async {
+    try {
+      final token = await _authService.getToken();
+      
+      if (token == null) {
+        return {'success': false, 'message': 'No token found'};
+      }
+      
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/followings'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        
+        dynamic followingData;
+        if (responseData is Map && responseData.containsKey('following')) {
+          followingData = responseData['following'];
+        } else if (responseData is List) {
+          followingData = responseData;
+        } else if (responseData is Map && responseData.containsKey('data')) {
+          followingData = responseData['data'];
+        } else {
+          followingData = responseData;
+        }
+        
+        return {
+          'success': true, 
+          'following': followingData
+        };
+      } else {
+        return {'success': false, 'message': 'Failed to get following data: ${response.statusCode}'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error: ${e.toString()}'};
+    }
+  }
+
+  String _formatTime(String? createdAt) {
+    if (createdAt == null) return '';
+    
+    try {
+      final DateTime dateTime = DateTime.parse(createdAt);
+      final DateTime now = DateTime.now();
+      final Duration difference = now.difference(dateTime);
+      
+      if (difference.inDays > 0) {
+        return '${difference.inDays} hari yang lalu';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} jam yang lalu';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} menit yang lalu';
+      } else {
+        return 'Baru saja';
+      }
+    } catch (e) {
+      return createdAt;
+    }
+  }
+
+  List<Map<String, dynamic>> get newestPosts {
+    return posts;
+  }
+
+  List<Map<String, dynamic>> get oldestPosts {
+    return posts.reversed.toList();
   }
 
   void navigateToEditProfile() async {
@@ -56,10 +270,7 @@ class _ProfilePageState extends State<ProfilePage>
     );
 
     if (result is Map<String, String>) {
-      setState(() {
-        username = result['username'] ?? username;
-        bio = result['bio'] ?? bio;
-      });
+      _loadUserData();
     }
   }
 
@@ -78,11 +289,9 @@ class _ProfilePageState extends State<ProfilePage>
               child: const Text('Batal'),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  posts.removeAt(index);
-                });
+              onPressed: () async {
                 Navigator.pop(context);
+                await _deleteKisah(index);
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Hapus'),
@@ -93,95 +302,365 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget buildPostCard(Map<String, String> post, int index) {
+  Future<void> _deleteKisah(int index) async {
+    try {
+      final token = await _authService.getToken();
+      
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Token tidak ditemukan. Silakan login kembali.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final kisahId = posts[index]['id'];
+      
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final response = await http.delete(
+        Uri.parse('http://127.0.0.1:8000/api/kisah/delete/$kisahId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      Navigator.pop(context);
+
+      if (response.statusCode == 200) {
+        setState(() {
+          posts.removeAt(index);
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kisah berhasil dihapus'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final responseData = json.decode(response.body);
+        final errorMessage = responseData['message'] ?? 'Gagal menghapus kisah';
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // New method to show comments management
+  void _showCommentsManagement(int kisahId) async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return;
+
+      // Fetch comments for this story
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/komen/kisah/$kisahId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final comments = json.decode(response.body) as List;
+        
+        if (!mounted) return;
+        
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          builder: (context) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              height: MediaQuery.of(context).size.height * 0.8,
+              child: Column(
+                children: [
+                  const Text(
+                    'Kelola Komentar',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: comments.isEmpty
+                        ? const Center(child: Text('Tidak ada komentar'))
+                        : ListView.builder(
+                            itemCount: comments.length,
+                            itemBuilder: (context, index) {
+                              final comment = comments[index];
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                child: ListTile(
+                                  title: Text(comment['isi'] ?? ''),
+                                  subtitle: Text(
+                                    'Oleh: ${comment['user_name'] ?? 'Anonim'}\n'
+                                    '${_formatTime(comment['created_at'])}',
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () => _deleteComment(comment['id']),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat komentar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // New method to delete a comment
+  Future<void> _deleteComment(int commentId) async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return;
+
+      final response = await http.delete(
+        Uri.parse('http://127.0.0.1:8000/api/komen/$commentId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Komentar berhasil dihapus'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context); // Close the bottom sheet
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menghapus komentar: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _buildProfileAvatar() {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.grey[300],
+      ),
+      child: avatarUrl != null && avatarUrl!.isNotEmpty
+          ? ClipOval(
+              child: Image.network(
+                avatarUrl!,
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        username.isNotEmpty ? username[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          : Center(
+              child: Text(
+                username.isNotEmpty ? username[0].toUpperCase() : 'U',
+                style: const TextStyle(
+                  fontSize: 24,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget buildPostCard(Map<String, dynamic> post, int originalIndex) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        post['title'] ?? '',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        post['time'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => FullStoryPage(
+                title: post['title'],
+                genre: post['genres'],
+                synopsis: post['sinopsis'],
+                fullStory: post['fullStory'],
+                user: username,
+                avatar: avatarUrl ?? '',
+                kisahId: post['id'],
+                needsFullData: post['fullStory']?.isEmpty ?? true,
+              ),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post['title'] ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => EditCeritaPage(
-                                story: post,
-                                onSave: (editedStory) {
-                                  setState(() {
-                                    posts[index] = editedStory;
-                                  });
-                                },
-                              ),
-                        ),
-                      );
-                    } else if (value == 'hapus') {
-                      _showDeleteConfirmation(context, index);
-                    }
-                  },
-                  itemBuilder:
-                      (context) => [
-                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                        const PopupMenuItem(
-                          value: 'hapus',
-                          child: Text('Hapus'),
+                        const SizedBox(height: 4),
+                        Text(
+                          post['time'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
-                  icon: const Icon(Icons.more_vert),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              children:
-                  (post['genres'] ?? '')
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      if (value == 'edit') {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EditCeritaPage(
+                              story: post,
+                              onSave: (editedStory) {
+                                setState(() {
+                                  posts[originalIndex] = editedStory;
+                                });
+                              },
+                            ),
+                          ),
+                        );
+                        
+                        if (result != null) {
+                          setState(() {
+                            posts[originalIndex] = result;
+                          });
+                        }
+                      } else if (value == 'hapus') {
+                        _showDeleteConfirmation(context, originalIndex);
+                      } else if (value == 'komentar') {
+                        _showCommentsManagement(post['id']);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      const PopupMenuItem(
+                        value: 'hapus',
+                        child: Text('Hapus'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'komentar',
+                        child: Text('Kelola Komentar'),
+                      ),
+                    ],
+                    icon: const Icon(Icons.more_vert),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (post['genres'] != null && post['genres'].toString().isNotEmpty)
+                Wrap(
+                  spacing: 6,
+                  children: post['genres']
+                      .toString()
                       .split(', ')
+                      .where((genre) => genre.isNotEmpty)
                       .map((genre) => Chip(label: Text(genre)))
                       .toList(),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Sinopsis:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(post['sinopsis'] ?? 'Tidak ada sinopsis.'),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: const [
-                Icon(Icons.thumb_up_alt_outlined),
-                Icon(Icons.thumb_down_alt_outlined),
-                Icon(Icons.comment_outlined),
-                Icon(Icons.share),
-              ],
-            ),
-          ],
+                ),
+              const SizedBox(height: 4),
+              const Text(
+                'Sinopsis:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(post['sinopsis'] ?? 'Tidak ada sinopsis.'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.comment),
+                    onPressed: () => _showCommentsManagement(post['id']),
+                  ),
+                  const Icon(Icons.share),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -197,73 +676,86 @@ class _ProfilePageState extends State<ProfilePage>
             icon: const Icon(Icons.settings),
             onPressed: navigateToEditProfile,
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadUserData,
+          ),
         ],
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 16),
-          CircleAvatar(radius: 40, backgroundImage: AssetImage(avatar)),
-          const SizedBox(height: 8),
-          Text(
-            '@$username',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 4),
-          Text(bio, style: const TextStyle(fontSize: 14)),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Column(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadUserData,
+              child: Column(
                 children: [
+                  const SizedBox(height: 16),
+                  _buildProfileAvatar(),
+                  const SizedBox(height: 8),
                   Text(
-                    '$followers',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    username.isNotEmpty ? username : 'Loading...',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
-                  const Text('Followers'),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            '$followers',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Text('Followers'),
+                        ],
+                      ),
+                      const SizedBox(width: 24),
+                      Column(
+                        children: [
+                          Text(
+                            '$following',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Text('Following'),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 32, thickness: 1),
+                  TabBar(
+                    controller: _tabController,
+                    labelColor: Colors.black,
+                    tabs: const [Tab(text: 'Terbaru'), Tab(text: 'Terlama')],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        ListView.builder(
+                          itemCount: newestPosts.length,
+                          itemBuilder: (context, index) {
+                            return buildPostCard(newestPosts[index], index);
+                          },
+                        ),
+                        ListView.builder(
+                          itemCount: oldestPosts.length,
+                          itemBuilder: (context, index) {
+                            final post = oldestPosts[index];
+                            final originalIndex = posts.indexWhere((p) => p['id'] == post['id']);
+                            return buildPostCard(post, originalIndex);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(width: 24),
-              Column(
-                children: [
-                  Text(
-                    '$following',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const Text('Following'),
-                ],
-              ),
-            ],
-          ),
-          const Divider(height: 32, thickness: 1),
-          TabBar(
-            controller: _tabController,
-            labelColor: Colors.black,
-            tabs: const [Tab(text: 'Terbaru'), Tab(text: 'Terlama')],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                ListView(
-                  children:
-                      posts.asMap().entries.map((entry) {
-                        // Gunakan posts tanpa reversed untuk 'Terbaru'
-                        return buildPostCard(entry.value, entry.key);
-                      }).toList(),
-                ),
-                ListView(
-                  children:
-                      posts.reversed.toList().asMap().entries.map((entry) {
-                        // Gunakan reversed untuk 'Terlama'
-                        return buildPostCard(entry.value, entry.key);
-                      }).toList(),
-                ),
-              ],
             ),
-          ),
-        ],
-      ),
     );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 }

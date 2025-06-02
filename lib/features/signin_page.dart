@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
@@ -11,20 +12,31 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
 
-  void _handleSignIn() {
+  Future<void> _handleSignIn() async {
     if (_formKey.currentState!.validate()) {
-      // Dummy auth logic
-      if (_emailController.text == 'ridho@ex.com' &&
-          _passwordController.text == 'password123') {
-        ScaffoldMessenger.of(
-          context,
-        );
+      setState(() {
+        _isLoading = true;
+      });
+
+      final result = await _authService.login(
+        _emailController.text,
+        _passwordController.text,
+        '${_emailController.text}_device',
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (result['success'] == true) {
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Invalid email or password")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result['message'])));
       }
     }
   }
@@ -90,6 +102,17 @@ class _SignInPageState extends State<SignInPage> {
                         hint: 'Email',
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Email is required';
+                          }
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value)) {
+                            return 'Enter a valid email';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       _buildTextField(
@@ -97,6 +120,15 @@ class _SignInPageState extends State<SignInPage> {
                         hint: 'Password',
                         controller: _passwordController,
                         obscureText: true,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Password is required';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 20),
                       const Text('OR', style: TextStyle(color: Colors.white)),
@@ -104,7 +136,7 @@ class _SignInPageState extends State<SignInPage> {
                       _buildGoogleButton(),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: _handleSignIn,
+                        onPressed: _isLoading ? null : _handleSignIn,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(
@@ -115,15 +147,22 @@ class _SignInPageState extends State<SignInPage> {
                             borderRadius: BorderRadius.circular(25),
                           ),
                         ),
-                        child: const Text(
-                          'Sign In',
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
+                        child:
+                            _isLoading
+                                ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                                : const Text(
+                                  'Sign In',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
                       ),
                       const SizedBox(height: 16),
                       GestureDetector(
                         onTap: () {
-                          // Forgot password
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text("Forgot password tapped"),
@@ -169,6 +208,7 @@ class _SignInPageState extends State<SignInPage> {
     required TextEditingController controller,
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
+    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,8 +233,9 @@ class _SignInPageState extends State<SignInPage> {
             ),
           ),
           validator:
-              (value) =>
-                  value == null || value.isEmpty ? '$label is required' : null,
+              validator ??
+              ((value) =>
+                  value == null || value.isEmpty ? '$label is required' : null),
         ),
       ],
     );

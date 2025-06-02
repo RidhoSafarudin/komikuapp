@@ -36,6 +36,10 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   share_plus: ^7.2.1
+  http: ^1.4.0
+  shared_preferences: ^2.0.15
+  image_picker: ^1.0.4
+  flutter_secure_storage: ^8.0.0
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +65,7 @@ flutter:
     - assets/avatar1.png
     - assets/avatar2.png
     - assets/avatar3.png
+    - assets/default_avatar.png
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
