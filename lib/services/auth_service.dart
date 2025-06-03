@@ -17,10 +17,9 @@ class AuthService {
 
   Future<void> deleteToken() async {
     await _storage.delete(key: 'auth_token');
-    await _storage.delete(key: 'user_id'); // Also delete user ID
+    await _storage.delete(key: 'user_id');
   }
 
-  // New methods for user ID
   Future<String?> getUserId() async {
     return await _storage.read(key: 'user_id');
   }
@@ -37,9 +36,19 @@ class AuthService {
     try {
       final response = await _client.post(
         Uri.parse('$_baseUrl/sanctum/token'),
-        headers: {'Accept': 'application/json'},
-        body: {'email': email, 'password': password, 'device_name': deviceName},
-      );
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'email': email,
+          'password': password,
+          'device_name': deviceName,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      print('Login Response Status: ${response.statusCode}');
+      print('Login Response Body: ${response.body}');
 
       final responseData = json.decode(response.body);
 
@@ -47,7 +56,6 @@ class AuthService {
         final token = responseData['token'] ?? responseData['access_token'];
         await saveToken(token);
         
-        // If the response includes user data, save the user ID
         if (responseData['user'] != null) {
           await saveUserId(responseData['user']['id'].toString());
         }
@@ -60,6 +68,7 @@ class AuthService {
         };
       }
     } catch (e) {
+      print('Login Error: $e');
       return {'success': false, 'message': 'Error: ${e.toString()}'};
     }
   }
@@ -70,32 +79,84 @@ class AuthService {
     String password,
   ) async {
     try {
+      // Prepare the request body
+      final requestBody = {
+        'name': name.trim(),
+        'email': email.trim().toLowerCase(),
+        'password': password,
+        'password_confirmation': password,
+      };
+
+      print('Register Request Body: ${json.encode(requestBody)}');
+
       final response = await _client.post(
         Uri.parse('$_baseUrl/register'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest', // Sometimes needed for Laravel
         },
-        body: json.encode({
-          'name': name,
-          'email': email,
-          'password': password,
-          'password_confirmation': password,
-        }),
-      );
+        body: json.encode(requestBody),
+      ).timeout(const Duration(seconds: 10));
 
-      final responseData = json.decode(response.body);
+      print('Register Response Status: ${response.statusCode}');
+      print('Register Response Body: ${response.body}');
+
+      // Handle different response formats
+      Map<String, dynamic> responseData;
+      try {
+        responseData = json.decode(response.body);
+      } catch (e) {
+        print('Failed to decode JSON: $e');
+        return {
+          'success': false,
+          'message': 'Invalid response format from server',
+        };
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final token = responseData['access_token'];
-        await saveToken(token);
+        final token = responseData['access_token'] ?? responseData['token'];
         
-        // If the response includes user data, save the user ID
-        if (responseData['user'] != null) {
-          await saveUserId(responseData['user']['id'].toString());
+        if (token != null) {
+          await saveToken(token);
+          
+          if (responseData['user'] != null) {
+            await saveUserId(responseData['user']['id'].toString());
+          }
+          
+          return {'success': true, 'token': token, 'user': responseData['user']};
+        } else {
+          return {
+            'success': false,
+            'message': 'Registration successful but no token received',
+          };
+        }
+      } else if (response.statusCode == 422) {
+        // Handle validation errors
+        String errorMessage = 'Validation failed';
+        
+        if (responseData['message'] != null) {
+          errorMessage = responseData['message'];
+        } else if (responseData['errors'] != null) {
+          // Extract validation error messages
+          Map<String, dynamic> errors = responseData['errors'];
+          List<String> errorMessages = [];
+          
+          errors.forEach((field, messages) {
+            if (messages is List) {
+              errorMessages.addAll(messages.cast<String>());
+            } else if (messages is String) {
+              errorMessages.add(messages);
+            }
+          });
+          
+          errorMessage = errorMessages.join(', ');
         }
         
-        return {'success': true, 'token': token, 'user': responseData['user']};
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
       } else {
         return {
           'success': false,
@@ -103,7 +164,8 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Error: ${e.toString()}'};
+      print('Register Error: $e');
+      return {'success': false, 'message': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -125,7 +187,6 @@ class AuthService {
     await deleteToken();
   }
 
-  // New method to get current user data
   Future<Map<String, dynamic>> getCurrentUser() async {
     try {
       final token = await getToken();
@@ -136,7 +197,6 @@ class AuthService {
       }
 
       if (userId != null) {
-        // Use stored user ID
         final response = await _client.get(
           Uri.parse('$_baseUrl/user/$userId'),
           headers: {
@@ -151,7 +211,6 @@ class AuthService {
         }
       }
 
-      // Fallback: try /api/me endpoint
       final response = await _client.get(
         Uri.parse('$_baseUrl/me'),
         headers: {
@@ -162,7 +221,6 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final userData = json.decode(response.body);
-        // Save user ID for future use
         await saveUserId(userData['id'].toString());
         return {'success': true, 'user': userData};
       }

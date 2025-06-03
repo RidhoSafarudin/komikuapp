@@ -131,10 +131,8 @@ class _SignInPageState extends State<SignInPage> {
                         },
                       ),
                       const SizedBox(height: 20),
-                      const Text('OR', style: TextStyle(color: Colors.white)),
-                      const SizedBox(height: 12),
-                      _buildGoogleButton(),
-                      const SizedBox(height: 16),
+                      
+                      
                       ElevatedButton(
                         onPressed: _isLoading ? null : _handleSignIn,
                         style: ElevatedButton.styleFrom(
@@ -160,6 +158,11 @@ class _SignInPageState extends State<SignInPage> {
                                   ),
                                 ),
                       ),
+                      const SizedBox(height: 16),
+                      const Text('OR', style: TextStyle(color: Colors.white)),
+                      const SizedBox(height: 12),
+                      _buildGoogleButton(),
+                      
                       const SizedBox(height: 16),
                       GestureDetector(
                         onTap: () {

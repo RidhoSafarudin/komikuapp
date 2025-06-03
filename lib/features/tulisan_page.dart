@@ -20,10 +20,10 @@ class _TulisanPageState extends State<TulisanPage> {
 
   List<String> genres = [
     'Romance',
-    'Fantasi',
-    'Horor',
+    'Fantasy',      // Changed from 'Fantasi'
+    'Horror',       // Changed from 'Horor'
     'Misteri',
-    'Action',
+    'Laga',         // Changed from 'Action'
     'Sejarah',
     'Fiksi Ilmiah',
     'Petualangan',
