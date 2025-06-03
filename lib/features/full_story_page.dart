@@ -202,7 +202,7 @@ class _FullStoryPageState extends State<FullStoryPage> {
       }
 
       final response = await _httpClient!.get(
-        Uri.parse('http://127.0.0.1:8000/api/user/getBookmarks'),
+        Uri.parse('http://127.0.0.1:8000/api/user/getBookmark'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',

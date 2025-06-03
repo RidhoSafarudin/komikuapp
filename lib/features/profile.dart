@@ -266,7 +266,7 @@ class _ProfilePageState extends State<ProfilePage>
   void navigateToEditProfile() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const EditProfilePage()),
+      MaterialPageRoute(builder: (_) => EditProfilePage()),
     );
 
     if (result is Map<String, String>) {

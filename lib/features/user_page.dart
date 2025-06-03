@@ -203,6 +203,28 @@ class _UserPageState extends State<UserPage>
     await _fetchFollowingCount();
   }
 
+  String _formatTime(String? createdAt) {
+    if (createdAt == null) return '';
+    
+    try {
+      final DateTime dateTime = DateTime.parse(createdAt);
+      final DateTime now = DateTime.now();
+      final Duration difference = now.difference(dateTime);
+      
+      if (difference.inDays > 0) {
+        return '${difference.inDays} hari yang lalu';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} jam yang lalu';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} menit yang lalu';
+      } else {
+        return 'Baru saja';
+      }
+    } catch (e) {
+      return createdAt;
+    }
+  }
+
   Future<void> _toggleFollow() async {
     setState(() {
       _isLoading = true;
@@ -338,7 +360,7 @@ class _UserPageState extends State<UserPage>
 
       if (isBookmarked) {
         final response = await http.delete(
-          Uri.parse('http://127.0.0.1:8000/api/bookmarks/$kisahId'),
+          Uri.parse('http://127.0.0.1:8000/api/bookmark/$kisahId'),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -501,7 +523,7 @@ class _UserPageState extends State<UserPage>
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              createdAt,
+                                              _formatTime(createdAt),
                                               style: const TextStyle(
                                                 fontSize: 10,
                                                 color: Colors.grey,
@@ -660,7 +682,7 @@ class _UserPageState extends State<UserPage>
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        post['created_at'] ?? '',
+                        _formatTime(post['created_at']),
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
