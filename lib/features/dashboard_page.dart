@@ -23,10 +23,8 @@ class _DashboardPageState extends State<DashboardPage> {
   final TextEditingController _commentController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _isLoading = true;
-  bool _commentsLoading = false;
   bool _userDataLoading = true;
   List<dynamic> _posts = [];
-  List<dynamic> _comments = [];
   
   // User data variables
   String _userName = 'Loading...';
@@ -40,29 +38,22 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     _fetchPosts();
-    _fetchComments();
     _fetchUserData();
   }
 
   @override
   void dispose() {
-    // Set flag to indicate widget is disposed
     _isDisposed = true;
-    
-    // Clean up controllers
     _commentController.dispose();
-    
     super.dispose();
   }
 
-  // Safe setState method that checks if widget is still mounted
   void _safeSetState(VoidCallback fn) {
     if (!_isDisposed && mounted) {
       setState(fn);
     }
   }
 
-  // Fetch user data from API
   Future<void> _fetchUserData() async {
     try {
       final token = await _authService.getToken();
@@ -84,7 +75,6 @@ class _DashboardPageState extends State<DashboardPage> {
         },
       );
 
-      // Check if widget is still mounted before updating state
       if (!_isDisposed && mounted) {
         if (response.statusCode == 200) {
           final responseData = json.decode(response.body);
@@ -127,7 +117,6 @@ class _DashboardPageState extends State<DashboardPage> {
         },
       );
 
-      // Check if widget is still mounted before updating state
       if (!_isDisposed && mounted) {
         if (response.statusCode == 200) {
           _safeSetState(() {
@@ -153,27 +142,6 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _fetchComments() async {
-    try {
-      final token = await _authService.getToken();
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/komen/all'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-
-      if (!_isDisposed && mounted && response.statusCode == 200) {
-        _safeSetState(() {
-          _comments = json.decode(response.body);
-        });
-      }
-    } catch (e) {
-      print('Error fetching comments: $e');
-    }
-  }
-
   Future<List<dynamic>> _fetchCommentsReturnList(int kisahId) async {
     try {
       final token = await _authService.getToken();
@@ -187,24 +155,20 @@ class _DashboardPageState extends State<DashboardPage> {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        throw Exception('Failed to fetch updated comments');
+        throw Exception('Failed to fetch comments');
       }
     } catch (e) {
-      print('Error fetching updated comments: $e');
+      print('Error fetching comments: $e');
       return [];
     }
   }
 
-  // Function to handle like/dislike reactions
   Future<void> _handleReaction(int kisahId, int value, int postIndex) async {
     try {
       final token = await _authService.getToken();
-      
-      // Check if user already has a reaction on this post
       final currentPost = _posts[postIndex];
       final currentUserReaction = currentPost['user_reaction'];
       
-      // If user clicks the same reaction they already have, remove it (delete)
       if (currentUserReaction == value) {
         final deleteResponse = await http.delete(
           Uri.parse('http://127.0.0.1:8000/api/kisah/$kisahId/reaction'),
@@ -216,8 +180,6 @@ class _DashboardPageState extends State<DashboardPage> {
         
         if (!_isDisposed && mounted && deleteResponse.statusCode == 200) {
           final responseData = json.decode(deleteResponse.body);
-          
-          // Remove user's reaction
           _safeSetState(() {
             _posts[postIndex]['user_reaction'] = null;
             _posts[postIndex]['like_count'] = int.parse(responseData['like_count'] ?? '0');
@@ -225,7 +187,6 @@ class _DashboardPageState extends State<DashboardPage> {
           });
         }
       } else {
-        // User clicks different reaction or has no reaction - add/update reaction
         final response = await http.post(
           Uri.parse('http://127.0.0.1:8000/api/kisah/$kisahId/reaction'),
           headers: {
@@ -240,8 +201,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
         if (!_isDisposed && mounted && response.statusCode == 200) {
           final responseData = json.decode(response.body);
-          
-          // Update user's reaction to new value
           _safeSetState(() {
             _posts[postIndex]['user_reaction'] = value;
             _posts[postIndex]['like_count'] = int.parse(responseData['like_count'] ?? '0');
@@ -258,7 +217,6 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // Function to handle bookmarking a story
   Future<void> _handleBookmark(int kisahId, int postIndex) async {
     try {
       final token = await _authService.getToken();
@@ -275,7 +233,6 @@ class _DashboardPageState extends State<DashboardPage> {
       final isBookmarked = currentPost['is_bookmarked'] ?? false;
 
       if (isBookmarked) {
-        // Remove bookmark
         final response = await http.delete(
           Uri.parse('http://127.0.0.1:8000/api/bookmarks/$kisahId'),
           headers: {
@@ -295,7 +252,6 @@ class _DashboardPageState extends State<DashboardPage> {
           }
         }
       } else {
-        // Add bookmark
         final response = await http.post(
           Uri.parse('http://127.0.0.1:8000/api/user/addBookmark'),
           headers: {
@@ -328,229 +284,185 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  void _showComments(BuildContext context, int kisahId) async {
-    _safeSetState(() {
-      _commentsLoading = true;
-    });
+  void _showComments(BuildContext context, int kisahId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<List<dynamic>> commentsFuture = _fetchCommentsReturnList(kisahId);
+          
+          void refreshComments() {
+            setModalState(() {
+              commentsFuture = _fetchCommentsReturnList(kisahId);
+            });
+          }
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.6,
+              builder: (context, scrollController) {
+                return FutureBuilder<List<dynamic>>(
+                  future: _fetchCommentsReturnList(kisahId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(child: Text('No comments yet'));
+                    }
 
-    try {
-      final token = await _authService.getToken();
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/komen/kisah/$kisahId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-
-      if (!_isDisposed && mounted) {
-        if (response.statusCode == 200) {
-          final List<dynamic> responseData = json.decode(response.body);
-          _safeSetState(() {
-            _comments = responseData;
-          });
-        } else {
-          throw Exception('Failed to load comments');
-        }
-      }
-    } catch (e) {
-      if (!_isDisposed && mounted && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading comments: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (!_isDisposed && mounted) {
-        _safeSetState(() {
-          _commentsLoading = false;
-        });
-      }
-    }
-
-    // Only show modal if widget is still mounted
-    if (!_isDisposed && mounted && context.mounted) {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setModalState) {
-              return DraggableScrollableSheet(
-                expand: false,
-                initialChildSize: 0.6,
-                builder: (context, scrollController) {
-                  return Column(
-                    children: [
-                      const SizedBox(height: 12),
-                      Container(
-                        width: 40,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        "Comments",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _commentsLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : Expanded(
-                            child:
-                                _comments.isEmpty
-                                    ? const Center(child: Text('No comments yet'))
-                                    : ListView.builder(
-                                      controller: scrollController,
-                                      itemCount: _comments.length,
-                                      itemBuilder: (context, index) {
-                                        final comment = _comments[index];
-                                        final user = comment['user'] ?? {};
-                                        final avatar =
-                                            user['avatar'] != null
-                                                ? 'http://127.0.0.1:8000/${user['avatar']}'
-                                                : null;
-                                        final userName =
-                                            user['name'] ?? 'Unknown User';
-                                        final createdAt =
-                                            comment['created_at'] ?? '';
-
-                                        return ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundImage:
-                                                avatar != null
-                                                    ? NetworkImage(avatar)
-                                                    : null,
-                                            child:
-                                                avatar == null
-                                                    ? const Icon(Icons.person)
-                                                    : null,
-                                          ),
-                                          title: Text(userName),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                createdAt,
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Container(
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.grey[200],
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                child: Text(comment['isi'] ?? ''),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    ),
+                    final comments = snapshot.data!;
+                    return Column(
+                      children: [
+                        const SizedBox(height: 12),
+                        Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                      Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
-                          left: 16,
-                          right: 16,
-                          top: 8,
                         ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _commentController,
-                                decoration: InputDecoration(
-                                  hintText: 'Add your comment...',
-                                  filled: true,
-                                  fillColor: Colors.grey[200],
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                    borderSide: BorderSide.none,
+                        const SizedBox(height: 10),
+                        const Text(
+                          "Comments",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Expanded(
+                          child: ListView.builder(
+                            controller: scrollController,
+                            itemCount: comments.length,
+                            itemBuilder: (context, index) {
+                              final comment = comments[index];
+                              final user = comment['user'] ?? {};
+                              final avatar = user['avatar'] != null
+                                  ? 'http://127.0.0.1:8000/${user['avatar']}'
+                                  : null;
+                              final userName = user['name'] ?? 'Unknown User';
+                              final createdAt = comment['created_at'] ?? '';
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage: avatar != null
+                                      ? NetworkImage(avatar)
+                                      : null,
+                                  child: avatar == null
+                                      ? const Icon(Icons.person)
+                                      : null,
+                                ),
+                                title: Text(userName),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      createdAt,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(comment['isi'] ?? ''),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).viewInsets.bottom,
+                            left: 16,
+                            right: 16,
+                            top: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _commentController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Add your comment...',
+                                    filled: true,
+                                    fillColor: Colors.grey[200],
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(25),
+                                      borderSide: BorderSide.none,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            CircleAvatar(
-                              backgroundColor: Colors.blueAccent,
-                              child: IconButton(
-                                icon: const Icon(Icons.send, color: Colors.white),
-                                onPressed: () async {
-                                  if (_commentController.text.isNotEmpty) {
-                                    try {
-                                      final token = await _authService.getToken();
-                                      final response = await http.post(
-                                        Uri.parse(
-                                          'http://127.0.0.1:8000/api/komen',
-                                        ),
-                                        headers: {
-                                          'Authorization': 'Bearer $token',
-                                          'Content-Type': 'application/json',
-                                        },
-                                        body: json.encode({
-                                          'isi': _commentController.text,
-                                          'kisah_id': kisahId,
-                                        }),
-                                      );
+                              const SizedBox(width: 8),
+                              CircleAvatar(
+                                backgroundColor: Colors.blueAccent,
+                                child: IconButton(
+                                  icon: const Icon(Icons.send, color: Colors.white),
+                                  onPressed: () async {
+                                    if (_commentController.text.isNotEmpty) {
+                                      try {
+                                        final token = await _authService.getToken();
+                                        final response = await http.post(
+                                          Uri.parse('http://127.0.0.1:8000/api/komen'),
+                                          headers: {
+                                            'Authorization': 'Bearer $token',
+                                            'Content-Type': 'application/json',
+                                          },
+                                          body: json.encode({
+                                            'isi': _commentController.text,
+                                            'kisah_id': kisahId,
+                                          }),
+                                        );
 
-                                      if (response.statusCode == 200) {
-                                        _commentController.clear();
-                                        // Immediately refresh comments after posting
-                                        final updatedComments = await _fetchCommentsReturnList(kisahId);
-                                        
-                                        if (context.mounted) {
-                                          setModalState(() {
-                                            _comments = updatedComments;
-                                          });
+                                        if (response.statusCode == 200) {
+                                          _commentController.clear();
+                                          refreshComments();
+                                          setModalState(() {});
                                         }
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
+                                      } catch (e) {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
-                                            content: Text(
-                                              'Failed to post comment: ${e.toString()}',
-                                            ),
+                                            content: Text('Failed to post comment: $e'),
                                           ),
                                         );
                                       }
                                     }
-                                  }
-                                },
+                                  },
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          );
-        },
-      );
-    }
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _handleLogout() async {
@@ -578,31 +490,32 @@ class _DashboardPageState extends State<DashboardPage> {
           handleReaction: _handleReaction,
           handleBookmark: _handleBookmark,
           onPostTap: (post) {
-            final user = post['user'] ?? {};
-            final avatarPath = user['avatar'] ?? '';
-            final avatarUrl = avatarPath.isNotEmpty 
-                ? 'http://127.0.0.1:8000/$avatarPath' 
-                : '';
-            
-            if (!_isDisposed && mounted && context.mounted) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FullStoryPage(
-                    title: post['judul'] ?? '',
-                    genre: post['genres']?.isNotEmpty == true
-                        ? post['genres'][0]['genre'] ?? ''
-                        : '',
-                    synopsis: post['sinopsis'] ?? '',
-                    fullStory: post['isi'] ?? '',
-                    user: user['name'] ?? 'Unknown',
-                    avatar: avatarUrl,
-                    kisahId: post['id'] ?? 0,
-                  ),
-                ),
-              );
-            }
-          },
+  final user = post['user'] ?? {};
+  final avatarPath = user['avatar'] ?? '';
+  final avatarUrl = avatarPath.isNotEmpty 
+      ? 'http://127.0.0.1:8000/$avatarPath' 
+      : '';
+  
+  if (!_isDisposed && mounted && context.mounted) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullStoryPage(
+          title: post['judul'] ?? '',
+          // Perbaikan di sini - gabungkan semua genre
+          genre: post['genres']?.isNotEmpty == true
+              ? (post['genres'] as List).map((g) => g['genre'] ?? '').join(', ')
+              : '',
+          synopsis: post['sinopsis'] ?? '',
+          fullStory: post['isi'] ?? '',
+          user: user['name'] ?? 'Unknown',
+          avatar: avatarUrl,
+          kisahId: post['id'] ?? 0,
+        ),
+      ),
+    );
+  }
+},
         ),
     const SearchPage(),
     const BookmarkPage(),
@@ -639,7 +552,6 @@ class _DashboardPageState extends State<DashboardPage> {
               onTap: () => Navigator.pop(context),
             ),
             const SizedBox(height: 20),
-            // User Avatar - Now uses actual user data
             CircleAvatar(
               radius: 40,
               backgroundImage: _userAvatar != null && _userAvatar!.isNotEmpty
@@ -658,7 +570,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   : null,
             ),
             const SizedBox(height: 10),
-            // User Name - Now shows actual user name
             Center(
               child: _userDataLoading 
                   ? const SizedBox(
@@ -674,7 +585,6 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
             ),
-            // Online Status
             Center(
               child: Text(
                 _isUserOnline ? 'Online' : 'Offline',
@@ -802,15 +712,13 @@ class HomeContent extends StatelessWidget {
         final avatarPath = user['avatar'] ?? '';
         final userName = user['name'] ?? 'Unknown';
         
-        // Fix avatar URL
         final String avatarUrl = avatarPath.isNotEmpty
             ? 'http://127.0.0.1:8000/$avatarPath'
             : '';
         
-        // Get reaction data
         final int likeCount = post['like_count'] ?? 0;
         final int dislikeCount = post['dislike_count'] ?? 0;
-        final int? userReaction = post['user_reaction']; // 1 for like, -1 for dislike, null for no reaction
+        final int? userReaction = post['user_reaction'];
         final bool isBookmarked = post['is_bookmarked'] ?? false;
 
         return GestureDetector(
@@ -868,7 +776,6 @@ class HomeContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // Add genres display similar to bookmark page
                   if (post['genres']?.isNotEmpty == true)
                     Wrap(
                       spacing: 6,
@@ -892,7 +799,6 @@ class HomeContent extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      // Like button with count
                       Row(
                         children: [
                           IconButton(
@@ -913,7 +819,6 @@ class HomeContent extends StatelessWidget {
                           ),
                         ],
                       ),
-                      // Dislike button with count
                       Row(
                         children: [
                           IconButton(
@@ -934,12 +839,10 @@ class HomeContent extends StatelessWidget {
                           ),
                         ],
                       ),
-                      // Comment button
                       IconButton(
                         icon: const Icon(Icons.comment_outlined),
                         onPressed: () => showComments(context, post['id'] ?? 0),
                       ),
-                      // Share button
                       IconButton(
                         icon: const Icon(Icons.share),
                         onPressed: () {

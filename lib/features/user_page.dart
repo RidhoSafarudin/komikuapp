@@ -31,6 +31,7 @@ class _UserPageState extends State<UserPage>
   int _followingCount = 0;
   List<dynamic> _userStories = [];
   String _displayUserName = '';
+  String _displayUserAvatar = '';
   bool _commentsLoading = false;
   List<dynamic> _comments = [];
   final TextEditingController _commentController = TextEditingController();
@@ -40,6 +41,8 @@ class _UserPageState extends State<UserPage>
     super.initState();
     print('UserPage initialized with userId: ${widget.userId}, userName: ${widget.userName}');
     _tabController = TabController(length: 2, vsync: this);
+    _displayUserName = widget.userName;
+    _displayUserAvatar = widget.userAvatar;
     _fetchUserData();
     _fetchUserStories();
     _checkFollowingStatus();
@@ -71,13 +74,21 @@ class _UserPageState extends State<UserPage>
         final userData = json.decode(response.body);
         setState(() {
           _displayUserName = userData['name'] ?? widget.userName;
+          // Ambil avatar dari API response
+          if (userData['avatar'] != null && userData['avatar'].toString().isNotEmpty) {
+            _displayUserAvatar = 'http://127.0.0.1:8000/${userData['avatar']}';
+          } else {
+            _displayUserAvatar = '';
+          }
         });
         print('Display user name set to: $_displayUserName');
+        print('Display user avatar set to: $_displayUserAvatar');
       }
     } catch (e) {
       print('Error fetching user data: $e');
       setState(() {
         _displayUserName = widget.userName;
+        _displayUserAvatar = widget.userAvatar;
       });
     }
   }
@@ -277,6 +288,7 @@ class _UserPageState extends State<UserPage>
 
   Future<void> _refreshUserData() async {
     print('Refreshing user data for ID: ${widget.userId}');
+    await _fetchUserData(); // Tambahkan ini untuk refresh avatar juga
     await _checkFollowingStatus();
     await _fetchFollowersCount();
     await _fetchFollowingCount();
@@ -425,6 +437,54 @@ class _UserPageState extends State<UserPage>
     }
   }
 
+  // Widget untuk menampilkan avatar dengan error handling
+  Widget _buildAvatar({required String? avatarUrl, double radius = 20}) {
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.grey[300],
+        child: Icon(
+          Icons.person,
+          size: radius * 1.2,
+          color: Colors.grey[600],
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.grey[300],
+      child: ClipOval(
+        child: Image.network(
+          avatarUrl,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading avatar: $error');
+            return Icon(
+              Icons.person,
+              size: radius * 1.2,
+              color: Colors.grey[600],
+            );
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _showComments(BuildContext context, int kisahId) async {
     setState(() {
       _commentsLoading = true;
@@ -510,14 +570,7 @@ class _UserPageState extends State<UserPage>
                                       final createdAt = comment['created_at'] ?? '';
 
                                       return ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundImage: avatar != null
-                                              ? NetworkImage(avatar)
-                                              : null,
-                                          child: avatar == null
-                                              ? const Icon(Icons.person)
-                                              : null,
-                                        ),
+                                        leading: _buildAvatar(avatarUrl: avatar),
                                         title: Text(userName),
                                         subtitle: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -631,7 +684,7 @@ class _UserPageState extends State<UserPage>
     final userName = user['name'] ?? 'Unknown';
     final avatarUrl = avatarPath.isNotEmpty
         ? 'http://127.0.0.1:8000/$avatarPath'
-        : '';
+        : null;
     final int likeCount = post['like_count'] ?? 0;
     final int dislikeCount = post['dislike_count'] ?? 0;
     final int? userReaction = post['user_reaction'];
@@ -651,7 +704,7 @@ class _UserPageState extends State<UserPage>
               synopsis: post['sinopsis'] ?? 'No Synopsis',
               fullStory: post['isi'] ?? 'No Content',
               user: userName,
-              avatar: avatarUrl,
+              avatar: avatarUrl ?? '',
               kisahId: post['id'] ?? 0,
               needsFullData: true,
             ),
@@ -667,12 +720,7 @@ class _UserPageState extends State<UserPage>
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundImage: avatarUrl.isNotEmpty 
-                        ? NetworkImage(avatarUrl) 
-                        : null,
-                    child: avatarUrl.isEmpty ? const Icon(Icons.person) : null,
-                  ),
+                  _buildAvatar(avatarUrl: avatarUrl),
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -819,6 +867,7 @@ class _UserPageState extends State<UserPage>
           ),
         ],
       ),
+
       body: RefreshIndicator(
         onRefresh: _refreshUserData,
         child: Column(
