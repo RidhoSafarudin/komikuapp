@@ -38,6 +38,7 @@ class _FullStoryPageState extends State<FullStoryPage> {
   bool _isLoading = false;
   bool _isLoadingStoryData = false;
   bool _isCheckingBookmark = true; // Track bookmark checking status
+  bool _isNavigating = false; // Track navigation state
   
   // Variables to hold the actual story data
   late String _actualTitle;
@@ -319,10 +320,8 @@ class _FullStoryPageState extends State<FullStoryPage> {
     }
   }
 
-  // Safe method to show SnackBar that checks if widget is mounted
   void _showSnackBar(String message) {
     if (mounted) {
-      // Use a post-frame callback to ensure the context is safe
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -333,22 +332,18 @@ class _FullStoryPageState extends State<FullStoryPage> {
     }
   }
 
-  // Method untuk mencari user ID berdasarkan nama
   Future<int?> _findUserIdByName(String userName) async {
-    // Skip search API karena tidak tersedia
     print('Skipping user search API (not available)');
     return null;
   }
 
-  // Method alternatif - coba beberapa ID yang mungkin
   Future<int?> _findUserIdFromCommonIds(String userName) async {
     try {
       final token = await _authService.getToken();
       if (token == null) return null;
       
-      // Coba beberapa ID user yang mungkin (1-10 sebagai contoh)
       for (int userId = 1; userId <= 20; userId++) {
-        if (!mounted) break; // Stop if widget is disposed
+        if (!mounted) break;
         
         try {
           final response = await _httpClient!.get(
@@ -367,7 +362,6 @@ class _FullStoryPageState extends State<FullStoryPage> {
             }
           }
         } catch (e) {
-          // Continue to next ID if this one fails
           continue;
         }
       }
@@ -378,45 +372,77 @@ class _FullStoryPageState extends State<FullStoryPage> {
   }
 
   void _navigateToUserPage(BuildContext context) async {
-    // Jangan gunakan default userIdToUse = 1
-    int? userIdToUse = _actualUserId;
+    if (_isNavigating) return;
+    if (!mounted) return;
     
-    // Jika tidak ada _actualUserId, coba cari berdasarkan nama
-    if (_actualUserId == null) {
-      print('No user ID found, searching by name: $_actualUser');
+    setState(() {
+      _isNavigating = true;
+    });
+
+    try {
+      int? userIdToUse = _actualUserId;
       
-      // Coba method pencarian dengan iterasi ID (workaround)
-      userIdToUse = await _findUserIdFromCommonIds(_actualUser);
-    }
-    
-    // Jika masih tidak ditemukan, tampilkan pesan error
-    if (userIdToUse == null) {
-      print('Unable to find user ID for: $_actualUser');
-      _showSnackBarWithAction(
-        'User "$_actualUser" not found. Try refreshing the story.',
-        'Refresh',
-        () => _fetchFullStoryData(),
-      );
-      return; // Don't navigate if no user ID found
-    }
-    
-    print('Navigating to user page with ID: $userIdToUse, Name: $_actualUser'); // Debug log
-    
-    if (mounted && context.mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => UserPage(
-            userId: userIdToUse!,
-            userName: _actualUser,
-            userAvatar: _actualAvatar,
+      if (_actualUserId == null) {
+        print('No user ID found, searching by name: $_actualUser');
+        userIdToUse = await _findUserIdFromCommonIds(_actualUser);
+      }
+      
+      if (userIdToUse == null) {
+        print('Unable to find user ID for: $_actualUser');
+        _showSnackBarWithAction(
+          'User "$_actualUser" not found. Try refreshing the story.',
+          'Refresh',
+          () => _fetchFullStoryData(),
+        );
+        return;
+      }
+      
+      print('Navigating to user page with ID: $userIdToUse, Name: $_actualUser');
+      
+      if (mounted && context.mounted) {
+        // Show loading dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
           ),
-        ),
-      );
+        );
+        
+        await Future.delayed(const Duration(milliseconds: 50));
+        
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserPage(
+              userId: userIdToUse!,
+              userName: _actualUser,
+              userAvatar: _actualAvatar,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error navigating to user page: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      // Close loading dialog if still open
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      
+      if (mounted) {
+        setState(() {
+          _isNavigating = false;
+        });
+      }
     }
   }
 
-  // Safe method to show SnackBar with action
   void _showSnackBarWithAction(String message, String actionLabel, VoidCallback onPressed) {
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -509,14 +535,18 @@ class _FullStoryPageState extends State<FullStoryPage> {
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: () => _navigateToUserPage(context),
+                    onTap: () {
+                      if (!_isNavigating) {
+                        _navigateToUserPage(context);
+                      }
+                    },
                     child: Text(
                       _actualUser,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.blueAccent,
                         decoration: TextDecoration.underline,
+                        color: _isNavigating ? Colors.grey : Colors.blueAccent,
                       ),
                     ),
                   ),

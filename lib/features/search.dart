@@ -97,6 +97,39 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
+  // Add method to fetch user ID by name
+  Future<int?> _fetchUserIdByName(String userName) async {
+    try {
+      final token = await _authService.getToken();
+      print('Fetching user ID for name: $userName');
+      
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/user?name=${Uri.encodeComponent(userName)}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      print('User ID API response: ${response.statusCode}');
+      print('User ID response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final userData = json.decode(response.body);
+        
+        // Handle different response formats
+        if (userData is Map && userData.containsKey('id')) {
+          return userData['id'] as int?;
+        } else if (userData is List && userData.isNotEmpty) {
+          return userData[0]['id'] as int?;
+        }
+      }
+    } catch (e) {
+      print('Error fetching user ID by name: $e');
+    }
+    return null;
+  }
+
   void _searchPosts() {
     // Check if widget is still mounted
     if (_isDisposed || !mounted) return;
@@ -185,20 +218,63 @@ class _SearchPageState extends State<SearchPage> {
         ),
         subtitle: Text('@${post['user_name'] ?? 'anonim'}'),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
+        onTap: () async {
           // Check if widget is still mounted before navigation
           if (!mounted) return;
           
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => UserPage(
-                userId: post['user_id'] ?? 0,
-                userName: post['user_name'] ?? 'Anonim',
-                userAvatar: post['user_avatar'] ?? '',
+          final userName = post['user_name'] ?? 'Anonim';
+          final userAvatar = post['user_avatar'] ?? '';
+          int? userId = post['user_id'];
+          
+          // If user_id is 0 or null, fetch it using the name
+          if (userId == null || userId == 0) {
+            print('User ID is null or 0, fetching by name: $userName');
+            
+            // Show loading indicator
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(
+                child: CircularProgressIndicator(),
               ),
-            ),
-          );
+            );
+            
+            userId = await _fetchUserIdByName(userName);
+            
+            // Hide loading indicator
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+            
+            if (userId == null) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Tidak dapat menemukan data user'),
+                  ),
+                );
+              }
+              return;
+            }
+          }
+          
+          print('Navigating to UserPage with:');
+          print('- userId: $userId');
+          print('- userName: $userName');
+          print('- userAvatar: $userAvatar');
+          
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UserPage(
+                  userId: userId!,
+                  userName: userName,
+                  userAvatar: userAvatar,
+                ),
+              ),
+            );
+          }
         },
       ),
     );
