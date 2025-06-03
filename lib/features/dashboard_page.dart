@@ -466,14 +466,33 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _handleLogout() async {
+  try {
+    // Tutup dialog konfirmasi
+    Navigator.of(context).pop(); 
+    
+    // Panggil logout
     await _authService.logout();
-    if (!_isDisposed && mounted && context.mounted) {
-      Navigator.pushReplacement(
+    
+    // Redirect ke HomePage
+    if (!_isDisposed && mounted) {
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
+    }
+  } catch (e) {
+    print('Error selama logout: $e');
+    // Tetap redirect meski ada error
+    if (!_isDisposed && mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
       );
     }
   }
+}
 
   void _onItemTapped(int index) {
     _safeSetState(() {

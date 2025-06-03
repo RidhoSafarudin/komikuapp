@@ -170,22 +170,16 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    final token = await getToken();
-    if (token != null) {
-      try {
-        await _client.post(
-          Uri.parse('$_baseUrl/logout'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
-        );
-      } catch (e) {
-        print('Error during logout: $e');
-      }
-    }
+  try {
+    // Hapus token tanpa memanggil API logout
+    await deleteToken();
+    print('Token berhasil dihapus');
+  } catch (e) {
+    print('Error saat menghapus token: $e');
+    // Tetap lanjutkan meski ada error
     await deleteToken();
   }
+}
 
   Future<Map<String, dynamic>> getCurrentUser() async {
     try {
