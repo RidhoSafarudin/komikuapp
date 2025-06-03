@@ -16,70 +16,169 @@ class _SignInPageState extends State<SignInPage> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String _getFormattedErrorMessage(Map<String, dynamic> result) {
+  // Default message
+  String errorMessage = 'Login failed. Please try again.';
+  
+  // Check if there's a main message
+  if (result['message'] != null && result['message'].toString().isNotEmpty) {
+    String mainMessage = result['message'].toString();
+    
+    // Handle specific credential error messages
+    if (mainMessage.toLowerCase().contains('credentials are incorrect') ||
+        mainMessage.toLowerCase().contains('invalid credentials') ||
+        mainMessage.toLowerCase().contains('unauthorized')) {
+      errorMessage = 'Email or password is incorrect. Please check and try again.';
+    } else if (mainMessage.toLowerCase().contains('email') && 
+               mainMessage.toLowerCase().contains('not found')) {
+      errorMessage = 'No account found with this email address.';
+    } else if (mainMessage.toLowerCase().contains('password')) {
+      errorMessage = 'Incorrect password. Please try again.';
+    } else {
+      errorMessage = mainMessage;
+    }
+  }
+  
+  // Check if there are specific field errors
+  if (result['errors'] != null && result['errors'] is Map) {
+    final Map<String, dynamic> errors = result['errors'];
+    List<String> errorMessages = [];
+    
+    // Handle email-specific errors
+    if (errors['email'] != null) {
+      List<String> emailErrors = [];
+      if (errors['email'] is List) {
+        emailErrors = errors['email'].cast<String>();
+      } else if (errors['email'] is String) {
+        emailErrors.add(errors['email']);
+      }
+      
+      // Format email error messages
+      for (String error in emailErrors) {
+        if (error.toLowerCase().contains('credentials are incorrect') ||
+            error.toLowerCase().contains('invalid credentials')) {
+          errorMessages.add('Email or password is incorrect');
+        } else if (error.toLowerCase().contains('not found')) {
+          errorMessages.add('No account found with this email');
+        } else {
+          errorMessages.add(error);
+        }
+      }
+    }
+    
+    // Handle password-specific errors
+    if (errors['password'] != null) {
+      List<String> passwordErrors = [];
+      if (errors['password'] is List) {
+        passwordErrors = errors['password'].cast<String>();
+      } else if (errors['password'] is String) {
+        passwordErrors.add(errors['password']);
+      }
+      
+      // Format password error messages
+      for (String error in passwordErrors) {
+        if (error.toLowerCase().contains('incorrect') ||
+            error.toLowerCase().contains('wrong')) {
+          errorMessages.add('Incorrect password');
+        } else {
+          errorMessages.add(error);
+        }
+      }
+    }
+    
+    // If we have specific field errors, use them
+    if (errorMessages.isNotEmpty) {
+      errorMessage = errorMessages.join(' • ');
+    }
+  }
+  
+  return errorMessage;
+}
 
   Future<void> _handleSignIn() async {
-    if (_formKey.currentState!.validate()) {
+  if (_formKey.currentState!.validate()) {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await _authService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+        '${_emailController.text.trim()}_device',
+      );
+
+      if (!mounted) return;
+
       setState(() {
-        _isLoading = true;
+        _isLoading = false;
       });
 
-      try {
-        final result = await _authService.login(
-          _emailController.text,
-          _passwordController.text,
-          '${_emailController.text}_device',
-        );
-
-        if (!mounted) return;
-
-        setState(() {
-          _isLoading = false;
-        });
-
-        if (result['success'] == true) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
-        } else {
-          // Clear password field and focus on email
-          _passwordController.clear();
-          FocusScope.of(context).requestFocus(FocusNode());
+      if (result['success'] == true) {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else {
+        // Clear password field and focus on email
+        _passwordController.clear();
+        
+        // Wait a bit before focusing to avoid conflicts
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        if (mounted) {
+          FocusScope.of(context).unfocus(); // Clear current focus first
+          await Future.delayed(const Duration(milliseconds: 100));
           FocusScope.of(context).requestFocus(_emailFocusNode);
+        }
 
-          // Enhanced error handling for 422 and other errors
-          String errorMessage = result['message'] ?? 'Login failed';
-          
-          // Check if there are specific field errors
-          if (result['errors'] != null) {
-            // Handle email-specific errors
-            if (result['errors']['email'] != null) {
-              errorMessage = result['errors']['email'].join('\n');
-            }
-          }
+        // Enhanced error message handling
+        String errorMessage = _getFormattedErrorMessage(result);
 
+        if (mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars(); // Clear existing snackbars
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(errorMessage),
+              content: Text(
+                errorMessage,
+                style: const TextStyle(color: Colors.white),
+              ),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 4),
               behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: 'Dismiss',
+                textColor: Colors.white,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
             ),
           );
         }
-      } catch (e) {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An error occurred: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
       }
+    } catch (e) {
+      print('Sign in error: $e'); // For debugging
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Network error. Please check your connection and try again.',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
-
+}
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -143,12 +242,12 @@ class _SignInPageState extends State<SignInPage> {
                         focusNode: _emailFocusNode,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
+                          if (value == null || value.trim().isEmpty) {
                             return 'Email is required';
                           }
                           if (!RegExp(
                             r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(value)) {
+                          ).hasMatch(value.trim())) {
                             return 'Enter a valid email address';
                           }
                           return null;
@@ -173,6 +272,7 @@ class _SignInPageState extends State<SignInPage> {
                         child: _isLoading
                             ? const CircularProgressIndicator(
                                 color: Colors.white,
+                                strokeWidth: 2.0,
                               )
                             : const Text(
                                 'Sign In',
@@ -265,9 +365,21 @@ class _SignInPageState extends State<SignInPage> {
               borderRadius: BorderRadius.circular(20),
               borderSide: BorderSide.none,
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: const BorderSide(color: Colors.blue, width: 2),
+            ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(20),
-              borderSide: const BorderSide(color: Colors.red),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
             errorStyle: const TextStyle(color: Colors.yellow),
           ),
@@ -298,9 +410,21 @@ class _SignInPageState extends State<SignInPage> {
               borderRadius: BorderRadius.circular(20),
               borderSide: BorderSide.none,
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: const BorderSide(color: Colors.blue, width: 2),
+            ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(20),
-              borderSide: const BorderSide(color: Colors.red),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
             suffixIcon: IconButton(
               icon: Icon(
@@ -336,8 +460,8 @@ class _SignInPageState extends State<SignInPage> {
           : () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Google sign-in tapped'),
-                  duration: Duration(seconds: 1),
+                  content: Text('Google sign-in coming soon'),
+                  duration: Duration(seconds: 2),
                 ),
               );
             },
