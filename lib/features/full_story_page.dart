@@ -110,82 +110,43 @@ class _FullStoryPageState extends State<FullStoryPage> {
   }
 
   Future<void> _fetchFullStoryData() async {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoadingStoryData = true;
-    });
+  if (!mounted) return;
+  
+  setState(() {
+    _isLoadingStoryData = true;
+  });
 
-    try {
-      final token = await _authService.getToken();
-      if (token == null) {
-        if (mounted) {
-          print('No token available for fetching story data');
-        }
-        return;
-      }
+  try {
+    final token = await _authService.getToken();
+    if (token == null) return;
 
-      final response = await _httpClient!.get(
-        Uri.parse('http://127.0.0.1:8000/api/kisah/${widget.kisahId}'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
+    final response = await _httpClient!.get(
+      Uri.parse('http://127.0.0.1:8000/api/kisah/${widget.kisahId}'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+    );
 
-      if (!mounted) return; // Check mounted before setState
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        if (mounted) {
-          setState(() {
-            _actualTitle = data['judul'] ?? widget.title;
-            _actualSynopsis = data['sinopsis'] ?? widget.synopsis;
-            _actualFullStory = data['isi'] ?? widget.fullStory;
-            
-            // Handle genre - might be array or string
-            if (data['genres'] != null) {
-              if (data['genres'] is List) {
-                _actualGenre = (data['genres'] as List).map((g) => g['genre'] ?? g.toString()).join(', ');
-              } else {
-                _actualGenre = data['genres'].toString();
-              }
-            } else {
-              _actualGenre = widget.genre;
-            }
-            
-            // Handle user data
-            final user = data['user'] ?? {};
-            _actualUser = user['name'] ?? widget.user;
-            
-            // Ambil user ID dengan berbagai kemungkinan field name
-            _actualUserId = user['id'] ?? user['user_id'] ?? user['userId'];
-            
-            print('Fetched user data: ID=${_actualUserId}, Name=${_actualUser}'); // Debug log
-            
-            final avatarPath = user['avatar'] ?? '';
-            _actualAvatar = avatarPath.isNotEmpty 
-                ? 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarPath.split('/').last)}' 
-                : widget.avatar;
-          });
-        }
-      } else {
-        print('Failed to fetch story data: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (mounted) {
-        print('Error fetching full story data: $e');
-      }
-      // Keep original data if fetch fails
-    } finally {
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
       if (mounted) {
         setState(() {
-          _isLoadingStoryData = false;
+          _actualUserId = data['user']?['id'] ?? 
+                         data['user_id'] ?? 
+                         data['userId'];
+          // Pastikan field lainnya juga diupdate
         });
       }
     }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoadingStoryData = false;
+      });
+    }
   }
+}
 
   Future<void> _checkBookmarkStatus() async {
     if (!mounted) return;
@@ -372,76 +333,84 @@ class _FullStoryPageState extends State<FullStoryPage> {
   }
 
   void _navigateToUserPage(BuildContext context) async {
-    if (_isNavigating) return;
-    if (!mounted) return;
-    
-    setState(() {
-      _isNavigating = true;
-    });
+  if (_isNavigating) return;
+  if (!mounted) return;
+  
+  setState(() {
+    _isNavigating = true;
+  });
 
-    try {
-      int? userIdToUse = _actualUserId;
-      
-      if (_actualUserId == null) {
-        print('No user ID found, searching by name: $_actualUser');
-        userIdToUse = await _findUserIdFromCommonIds(_actualUser);
-      }
-      
-      if (userIdToUse == null) {
-        print('Unable to find user ID for: $_actualUser');
-        _showSnackBarWithAction(
-          'User "$_actualUser" not found. Try refreshing the story.',
-          'Refresh',
-          () => _fetchFullStoryData(),
-        );
-        return;
-      }
-      
-      print('Navigating to user page with ID: $userIdToUse, Name: $_actualUser');
-      
-      if (mounted && context.mounted) {
-        // Show loading dialog
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: CircularProgressIndicator(),
+  try {
+    int? userIdToUse = _actualUserId;
+    
+    if (userIdToUse == null) {
+      // Jika tidak ada user_id, gunakan API pencarian berdasarkan nama
+      userIdToUse = await _fetchUserIdByName(_actualUser);
+    }
+    
+    if (userIdToUse == null) {
+      _showSnackBarWithAction(
+        'User "$_actualUser" tidak ditemukan. Coba muat ulang cerita.',
+        'Muat Ulang',
+        () => _fetchFullStoryData(),
+      );
+      return;
+    }
+    
+    if (mounted && context.mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UserPage(
+            userId: userIdToUse!,
+            userName: _actualUser,
+            userAvatar: _actualAvatar,
           ),
-        );
-        
-        await Future.delayed(const Duration(milliseconds: 50));
-        
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => UserPage(
-              userId: userIdToUse!,
-              userName: _actualUser,
-              userAvatar: _actualAvatar,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error navigating to user page: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
-      }
-    } finally {
-      // Close loading dialog if still open
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      
-      if (mounted) {
-        setState(() {
-          _isNavigating = false;
-        });
-      }
+        ),
+      );
+    }
+  } catch (e) {
+    print('Error navigating to user page: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isNavigating = false;
+      });
     }
   }
+}
+
+Future<int?> _fetchUserIdByName(String userName) async {
+  try {
+    final token = await _authService.getToken();
+    if (token == null) return null;
+    
+    final response = await _httpClient!.get(
+      Uri.parse('http://127.0.0.1:8000/api/user?name=${Uri.encodeComponent(userName)}'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final userData = json.decode(response.body);
+      if (userData is Map && userData.containsKey('id')) {
+        return userData['id'] as int?;
+      } else if (userData is List && userData.isNotEmpty) {
+        return userData[0]['id'] as int?;
+      }
+    }
+  } catch (e) {
+    print('Error fetching user ID by name: $e');
+  }
+  return null;
+}
 
   void _showSnackBarWithAction(String message, String actionLabel, VoidCallback onPressed) {
     if (mounted) {

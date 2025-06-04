@@ -19,6 +19,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  
   int _selectedIndex = 0;
   final TextEditingController _commentController = TextEditingController();
   final AuthService _authService = AuthService();
@@ -345,18 +346,19 @@ class _DashboardPageState extends State<DashboardPage> {
                             itemBuilder: (context, index) {
                               final comment = comments[index];
                               final user = comment['user'] ?? {};
-                              final avatar = user['avatar'] != null
-                                  ? 'http://127.0.0.1:8000/${user['avatar']}'
+                              final avatarPath = user['avatar'] ?? '';
+                              final avatarUrl = avatarPath.isNotEmpty
+                                  ? 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarPath.split('/').last)}'
                                   : null;
                               final userName = user['name'] ?? 'Unknown User';
                               final createdAt = comment['created_at'] ?? '';
 
                               return ListTile(
                                 leading: CircleAvatar(
-                                  backgroundImage: avatar != null
-                                      ? NetworkImage(avatar)
+                                  backgroundImage: avatarUrl != null
+                                      ? NetworkImage(avatarUrl)
                                       : null,
-                                  child: avatar == null
+                                  child: avatarUrl == null
                                       ? const Icon(Icons.person)
                                       : null,
                                 ),
@@ -466,33 +468,33 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _handleLogout() async {
-  try {
-    // Tutup dialog konfirmasi
-    Navigator.of(context).pop(); 
-    
-    // Panggil logout
-    await _authService.logout();
-    
-    // Redirect ke HomePage
-    if (!_isDisposed && mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePage()),
-        (route) => false,
-      );
-    }
-  } catch (e) {
-    print('Error selama logout: $e');
-    // Tetap redirect meski ada error
-    if (!_isDisposed && mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePage()),
-        (route) => false,
-      );
+    try {
+      // Tutup dialog konfirmasi
+      Navigator.of(context).pop(); 
+      
+      // Panggil logout
+      await _authService.logout();
+      
+      // Redirect ke HomePage
+      if (!_isDisposed && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      print('Error selama logout: $e');
+      // Tetap redirect meski ada error
+      if (!_isDisposed && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
+          (route) => false,
+        );
+      }
     }
   }
-}
 
   void _onItemTapped(int index) {
     _safeSetState(() {
@@ -509,32 +511,31 @@ class _DashboardPageState extends State<DashboardPage> {
           handleReaction: _handleReaction,
           handleBookmark: _handleBookmark,
           onPostTap: (post) {
-  final user = post['user'] ?? {};
-  final avatarPath = user['avatar'] ?? '';
-  final avatarUrl = avatarPath.isNotEmpty 
-      ? 'http://127.0.0.1:8000/$avatarPath' 
-      : '';
-  
-  if (!_isDisposed && mounted && context.mounted) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FullStoryPage(
-          title: post['judul'] ?? '',
-          // Perbaikan di sini - gabungkan semua genre
-          genre: post['genres']?.isNotEmpty == true
-              ? (post['genres'] as List).map((g) => g['genre'] ?? '').join(', ')
-              : '',
-          synopsis: post['sinopsis'] ?? '',
-          fullStory: post['isi'] ?? '',
-          user: user['name'] ?? 'Unknown',
-          avatar: avatarUrl,
-          kisahId: post['id'] ?? 0,
-        ),
-      ),
-    );
-  }
-},
+              final user = post['user'] ?? {};
+              final avatarPath = user['avatar'] ?? '';
+              final avatarUrl = avatarPath.isNotEmpty
+                  ? 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarPath.split('/').last)}'
+                  : '';
+              
+              if (!_isDisposed && mounted && context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FullStoryPage(
+                      title: post['judul'] ?? '',
+                      genre: post['genres']?.isNotEmpty == true
+                          ? (post['genres'] as List).map((g) => g['genre'] ?? '').join(', ')
+                          : '',
+                      synopsis: post['sinopsis'] ?? '',
+                      fullStory: post['isi'] ?? '',
+                      user: user['name'] ?? 'Unknown',
+                      avatar: avatarUrl,
+                      kisahId: post['id'] ?? 0,
+                    ),
+                  ),
+                );
+              }
+            },
         ),
     const SearchPage(),
     const BookmarkPage(),
@@ -562,122 +563,99 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
       drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const SizedBox(height: 40),
-            ListTile(
-              leading: const Icon(Icons.arrow_back),
-              onTap: () => Navigator.pop(context),
-            ),
-            const SizedBox(height: 20),
-            CircleAvatar(
-              radius: 40,
-              backgroundImage: _userAvatar != null && _userAvatar!.isNotEmpty
-                  ? NetworkImage(_userAvatar!)
-                  : null,
-              onBackgroundImageError: _userAvatar != null 
-                  ? (_, __) {} 
-                  : null,
-              child: _userAvatar == null || _userAvatar!.isEmpty
-                  ? (_userName.isNotEmpty && _userName != 'Loading...' && _userName != 'Error loading name'
-                      ? Text(
-                          _userName[0].toUpperCase(),
-                          style: const TextStyle(fontSize: 24, color: Colors.white),
-                        )
-                      : const Icon(Icons.person, size: 50))
-                  : null,
-            ),
-            const SizedBox(height: 10),
-            Center(
-              child: _userDataLoading 
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      _userName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-            Center(
-              child: Text(
-                _isUserOnline ? 'Online' : 'Offline',
-                style: TextStyle(
-                  color: _isUserOnline ? Colors.green : Colors.grey,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              title: const Text('Profile akun'),
-              leading: const Icon(Icons.person_outline),
-              onTap: () {
-                Navigator.pop(context);
-                if (context.mounted) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  );
-                }
-              },
-            ),
-            ListTile(
-              title: const Text('Tentang Kami'),
-              leading: const Icon(Icons.info_outline),
-              onTap: () {
-                Navigator.pop(context);
-                if (context.mounted) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MyKisahPage()),
-                  );
-                }
-              },
-            ),
-            const Divider(),
-            ListTile(
-              title: const Text('Logout', style: TextStyle(color: Colors.red)),
-              leading: const Icon(Icons.logout, color: Colors.red),
-              onTap: () {
-                Navigator.pop(context);
-                if (context.mounted) {
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Konfirmasi Logout'),
-                        content: const Text('Apakah Anda yakin ingin logout?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Batal'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _handleLogout();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                            ),
-                            child: const Text('Logout'),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                }
-              },
-            ),
-          ],
+  child: ListView(
+    padding: EdgeInsets.zero,
+    children: [
+      UserAccountsDrawerHeader(
+        accountName: Text(
+          _userName,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        accountEmail: Text(
+          _isUserOnline ? 'Online' : 'Offline',
+          style: TextStyle(
+            color: _isUserOnline ? Colors.green : Colors.grey,
+          ),
+        ),
+        currentAccountPicture: CircleAvatar(
+          backgroundColor: Colors.white,
+          backgroundImage: _userAvatar != null && _userAvatar!.isNotEmpty
+              ? NetworkImage(
+                  'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(_userAvatar!.split('/').last)}',
+                )
+              : null,
+          child: _userAvatar == null || _userAvatar!.isEmpty
+              ? Icon(Icons.person, size: 40, color: Colors.grey)
+              : null,
+        ),
+        decoration: BoxDecoration(
+          color: Color.fromARGB(255, 159, 186, 188),
         ),
       ),
+      ListTile(
+        leading: Icon(Icons.person_outline, color: Colors.grey[700]),
+        title: Text('Profile akun'),
+        onTap: () {
+          Navigator.pop(context);
+          if (context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfilePage()),
+            );
+          }
+        },
+      ),
+      ListTile(
+        leading: Icon(Icons.info_outline, color: Colors.grey[700]),
+        title: Text('Tentang Kami'),
+        onTap: () {
+          Navigator.pop(context);
+          if (context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyKisahPage()),
+            );
+          }
+        },
+      ),
+      Divider(),
+      ListTile(
+        leading: Icon(Icons.logout, color: Colors.red),
+        title: Text('Logout', style: TextStyle(color: Colors.red)),
+        onTap: () {
+          Navigator.pop(context);
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text('Konfirmasi Logout'),
+                  content: const Text('Apakah Anda yakin ingin logout?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Batal'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _handleLogout();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      child: const Text('Logout'),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
+        },
+      ),
+    ],
+  ),
+),
       body: IndexedStack(index: _selectedIndex, children: _pages()),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -732,7 +710,7 @@ class HomeContent extends StatelessWidget {
         final userName = user['name'] ?? 'Unknown';
         
         final String avatarUrl = avatarPath.isNotEmpty
-            ? 'http://127.0.0.1:8000/$avatarPath'
+            ? 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarPath.split('/').last)}'
             : '';
         
         final int likeCount = post['like_count'] ?? 0;
