@@ -166,7 +166,7 @@ class _FullStoryPageState extends State<FullStoryPage> {
             
             final avatarPath = user['avatar'] ?? '';
             _actualAvatar = avatarPath.isNotEmpty 
-                ? 'http://127.0.0.1:8000/$avatarPath' 
+                ? 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarPath.split('/').last)}' 
                 : widget.avatar;
           });
         }
@@ -525,12 +525,52 @@ class _FullStoryPageState extends State<FullStoryPage> {
                 children: [
                   GestureDetector(
                     onTap: () => _navigateToUserPage(context),
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundImage: (_actualAvatar.isNotEmpty)
-                          ? NetworkImage(_actualAvatar)
-                          : const AssetImage('assets/default_avatar.png')
-                              as ImageProvider,
+                    child: Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.grey[300],
+                      ),
+                      child: _actualAvatar.isNotEmpty
+                          ? ClipOval(
+                              child: Image.network(
+                                _actualAvatar,
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 100,
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[400],
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _actualUser.isNotEmpty ? _actualUser[0].toUpperCase() : 'U',
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                _actualUser.isNotEmpty ? _actualUser[0].toUpperCase() : 'U',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 8),

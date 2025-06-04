@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import '../services/auth_service.dart';
+import 'dart:html' as html; // Hanya untuk web
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({Key? key}) : super(key: key);
@@ -14,7 +16,7 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   String nama = '';
-  String email = ''; // Tambahkan variabel untuk menyimpan email
+  String email = '';
   bool isEditingNama = false;
   TextEditingController _controller = TextEditingController();
   String? avatarUrl;
@@ -61,15 +63,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
         
         setState(() {
           nama = userData['name'] ?? '';
-          email = userData['email'] ?? ''; // Simpan email dari response
+          email = userData['email'] ?? '';
+          // Perbaikan: Gunakan format URL yang sama seperti di profile.dart
           if (userData['avatar_url'] != null && userData['avatar_url'].toString().isNotEmpty) {
-            if (userData['avatar_url'].toString().startsWith('http')) {
-              avatarUrl = userData['avatar_url'];
-            } else {
-              avatarUrl = '$baseUrl/${userData['avatar_url']}';
-            }
-          } else {
-            avatarUrl = '$baseUrl/user/getAvatar?token=$token';
+            avatarUrl = 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(userData['avatar_url'].toString().split('/').last)}';
           }
           isLoading = false;
         });
@@ -141,7 +138,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         },
         body: json.encode({
           'name': _controller.text.trim(),
-          'email': email, // Kirim email yang sudah disimpan
+          'email': email,
         }),
       );
 
@@ -175,138 +172,189 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _pickAndUploadAvatar() async {
-    final ImagePicker picker = ImagePicker();
-    
-    try {
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1500,
-        maxHeight: 1500,
-        imageQuality: 85,
+  final ImagePicker picker = ImagePicker();
+  
+  try {
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1500,
+      maxHeight: 1500,
+      imageQuality: 85,
+    );
+
+    if (image != null) {
+      setState(() {
+        isUploadingAvatar = true;
+        if (!kIsWeb) {
+          selectedAvatarFile = File(image.path);
+        }
+      });
+
+      final token = await _authService.getToken();
+      
+      if (token == null) {
+        setState(() {
+          isUploadingAvatar = false;
+          selectedAvatarFile = null;
+        });
+        _showErrorSnackBar('Token tidak ditemukan. Silakan login kembali.');
+        return;
+      }
+
+      var request = http.MultipartRequest(
+        'POST', 
+        Uri.parse('$baseUrl/user/uploadAvatar')
       );
 
-      if (image != null) {
-        setState(() {
-          isUploadingAvatar = true;
-          selectedAvatarFile = File(image.path);
-        });
+      request.headers.addAll({
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      });
 
-        final token = await _authService.getToken();
-        
-        if (token == null) {
-          setState(() {
-            isUploadingAvatar = false;
-            selectedAvatarFile = null;
-          });
-          _showErrorSnackBar('Token tidak ditemukan. Silakan login kembali.');
-          return;
-        }
-
-        var request = http.MultipartRequest(
-          'POST', 
-          Uri.parse('$baseUrl/user/uploadAvatar')
+      if (kIsWeb) {
+        // Handle untuk web
+        final bytes = await image.readAsBytes();
+        final blob = html.Blob([bytes]);
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'avatar', 
+            bytes,
+            filename: image.name,
+          )
         );
-
-        request.headers.addAll({
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        });
-
+      } else {
+        // Handle untuk mobile/desktop
         request.files.add(
           await http.MultipartFile.fromPath('avatar', image.path)
         );
-
-        final streamedResponse = await request.send();
-        final response = await http.Response.fromStream(streamedResponse);
-
-        if (response.statusCode == 200) {
-          final responseData = json.decode(response.body);
-          
-          String newAvatarUrl;
-          if (responseData['url'] != null) {
-            newAvatarUrl = responseData['url'];
-          } else if (responseData['path'] != null) {
-            newAvatarUrl = '$baseUrl/${responseData['path']}';
-          } else {
-            newAvatarUrl = '$baseUrl/user/getAvatar?token=$token&t=${DateTime.now().millisecondsSinceEpoch}';
-          }
-
-          setState(() {
-            avatarUrl = newAvatarUrl;
-            selectedAvatarFile = null;
-          });
-
-          _showSuccessSnackBar('Avatar berhasil diupload');
-          
-          Navigator.pop(context, {
-            'nama': nama,
-            'avatarUrl': avatarUrl,
-          });
-          
-        } else {
-          final errorData = json.decode(response.body);
-          _showErrorSnackBar('Gagal mengupload avatar: ${errorData['message'] ?? 'Unknown error'}');
-          
-          setState(() {
-            selectedAvatarFile = null;
-          });
-        }
       }
-    } catch (e) {
-      _showErrorSnackBar('Error saat upload avatar: $e');
-      setState(() {
-        selectedAvatarFile = null;
-      });
-    } finally {
-      setState(() {
-        isUploadingAvatar = false;
-      });
-    }
-  }
 
-  Widget _buildAvatar() {
-    if (selectedAvatarFile != null) {
-      return CircleAvatar(
-        radius: 40,
-        backgroundImage: FileImage(selectedAvatarFile!),
-      );
-    }
-    
-    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: 40,
-        backgroundImage: NetworkImage(avatarUrl!),
-        onBackgroundImageError: (exception, stackTrace) {
-          print('Error loading avatar: $exception');
-          setState(() {
-            avatarUrl = null;
-          });
-        },
-      );
-    }
-      
-    return CircleAvatar(
-      radius: 40,
-      backgroundColor: Colors.blue,
-      child: Text(
-        nama.isNotEmpty ? nama[0].toUpperCase() : 'U',
-        style: TextStyle(fontSize: 24, color: Colors.white),
-      ),
-    );
-  }
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
-  Future<void> _refreshAvatar() async {
-    try {
-      final token = await _authService.getToken();
-      if (token != null) {
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        
+        String newAvatarUrl;
+        if (responseData['url'] != null) {
+          newAvatarUrl = 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(responseData['url'].toString().split('/').last)}';
+        } else if (responseData['path'] != null) {
+          newAvatarUrl = 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(responseData['path'].toString().split('/').last)}';
+        } else {
+          newAvatarUrl = '$baseUrl/user/getAvatar?token=$token&t=${DateTime.now().millisecondsSinceEpoch}';
+        }
+
         setState(() {
-          avatarUrl = '$baseUrl/user/getAvatar?token=$token&t=${DateTime.now().millisecondsSinceEpoch}';
+          avatarUrl = newAvatarUrl;
+          selectedAvatarFile = null;
+        });
+
+        _showSuccessSnackBar('Avatar berhasil diupload');
+        
+        Navigator.pop(context, {
+          'nama': nama,
+          'avatarUrl': avatarUrl,
+        });
+        
+      } else {
+        final errorData = json.decode(response.body);
+        _showErrorSnackBar('Gagal mengupload avatar: ${errorData['message'] ?? 'Unknown error'}');
+        
+        setState(() {
+          selectedAvatarFile = null;
         });
       }
-    } catch (e) {
-      print('Error refreshing avatar: $e');
     }
+  } catch (e) {
+    _showErrorSnackBar('Error saat upload avatar: $e');
+    setState(() {
+      selectedAvatarFile = null;
+    });
+  } finally {
+    setState(() {
+      isUploadingAvatar = false;
+    });
   }
+}
+
+  Widget _buildAvatar() {
+  return Container(
+    width: 80,
+    height: 80,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.grey[300],
+    ),
+    child: Stack(
+      children: [
+        if (selectedAvatarFile != null && !kIsWeb)
+          ClipOval(
+            child: Image.file(
+              selectedAvatarFile!,
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+            ),
+          )
+        else if (avatarUrl != null && avatarUrl!.isNotEmpty)
+          ClipOval(
+            child: Image.network(
+              avatarUrl!,
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      nama.isNotEmpty ? nama[0].toUpperCase() : 'U',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          )
+        else
+          Center(
+            child: Text(
+              nama.isNotEmpty ? nama[0].toUpperCase() : 'U',
+              style: const TextStyle(
+                fontSize: 24,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        if (isUploadingAvatar)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -339,25 +387,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
             SizedBox(height: 20),
             
             // Avatar Section
-            Stack(
-              children: [
-                _buildAvatar(),
-                if (isUploadingAvatar)
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+            Center(
+              child: _buildAvatar(),
             ),
             
             SizedBox(height: 10),

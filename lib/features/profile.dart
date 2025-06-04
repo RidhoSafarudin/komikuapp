@@ -491,54 +491,54 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildProfileAvatar() {
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.grey[300],
-      ),
-      child: avatarUrl != null && avatarUrl!.isNotEmpty
-          ? ClipOval(
-              child: Image.network(
-                avatarUrl!,
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[400],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        username.isNotEmpty ? username[0].toUpperCase() : 'U',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+  return Container(
+    width: 80,
+    height: 80,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.grey[300],
+    ),
+    child: avatarUrl != null && avatarUrl!.isNotEmpty
+        ? ClipOval(
+            child: Image.network(
+              'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarUrl!.split('/').last)}',
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      username.isNotEmpty ? username[0].toUpperCase() : 'U',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  );
-                },
-              ),
-            )
-          : Center(
-              child: Text(
-                username.isNotEmpty ? username[0].toUpperCase() : 'U',
-                style: const TextStyle(
-                  fontSize: 24,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.bold,
-                ),
+                  ),
+                );
+              },
+            ),
+          )
+        : Center(
+            child: Text(
+              username.isNotEmpty ? username[0].toUpperCase() : 'U',
+              style: const TextStyle(
+                fontSize: 24,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
               ),
             ),
-    );
-  }
+          ),
+  );
+}
 
   Widget buildPostCard(Map<String, dynamic> post, int originalIndex) {
     return Card(
