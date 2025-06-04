@@ -585,7 +585,9 @@ class _ProfilePageState extends State<ProfilePage>
       synopsis: post['sinopsis'] ?? 'No Synopsis',
       fullStory: post['isi'] ?? post['fullStory'] ?? 'No Content', // Handle both possible keys
       user: username,
-      avatar: avatarUrl ?? '',
+      avatar: avatarUrl != null && avatarUrl!.isNotEmpty
+            ? 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarUrl!.split('/').last)}'
+            : '',
       kisahId: post['id'],
       needsFullData: (post['fullStory']?.isEmpty ?? true) && (post['isi']?.isEmpty ?? true),
 
