@@ -32,6 +32,29 @@ class _ProfilePageState extends State<ProfilePage>
     _tabController = TabController(length: 2, vsync: this);
     _loadUserData();
   }
+  Future<Map<String, dynamic>> _getUserKisah(int userId) async {
+  try {
+    final token = await _authService.getToken();
+    final response = await http.get(
+      Uri.parse('http://127.0.0.1:8000/api/kisah/user/$userId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      return {
+        'success': true,
+        'kisah': json.decode(response.body),
+      };
+    } else {
+      return {'success': false, 'message': 'Failed to load kisah'};
+    }
+  } catch (e) {
+    return {'success': false, 'message': 'Error: $e'};
+  }
+}
 
   Future<void> _loadUserData() async {
     setState(() {
@@ -43,6 +66,8 @@ class _ProfilePageState extends State<ProfilePage>
       
       if (profileResult['success'] == true && profileResult['user'] != null) {
         final userData = profileResult['user'];
+        final userId = userData['id'];
+        final kisahResult = await _getUserKisah(userId);
         
         final Future<Map<String, dynamic>> followersResult = _getFollowers();
         final Future<Map<String, dynamic>> followingResult = _getFollowing();
@@ -69,19 +94,23 @@ class _ProfilePageState extends State<ProfilePage>
             following = 0;
           }
           
-          if (profileResult['kisah'] != null) {
-            posts = (profileResult['kisah'] as List).map((kisah) {
-              return {
-                'id': kisah['id'],
-                'title': kisah['judul'] ?? '',
-                'time': _formatTime(kisah['created_at']),
-                'created_at': kisah['created_at'],
-                'sinopsis': kisah['sinopsis'] ?? 'Tidak ada sinopsis.',
-                'fullStory': kisah['isi'] ?? '', // Use 'isi' field for full story
-                'genres': (kisah['genres'] as List?)?.join(', ') ?? '',
-                'user_id': kisah['user_id'] ?? 0, // Add user_id for navigation
-              };
-            }).toList();
+          if (kisahResult['success'] == true) {
+  posts = (kisahResult['kisah'] as List).map((kisah) {
+    // Perbaikan untuk menangani format genre
+    List<dynamic> genres = kisah['genres'] ?? [];
+    List<String> genreNames = genres.map((g) => g['genre']?.toString() ?? '').toList();
+    
+    return {
+      'id': kisah['id'],
+      'title': kisah['judul'] ?? '',
+      'time': _formatTime(kisah['created_at']),
+      'created_at': kisah['created_at'],
+      'sinopsis': kisah['sinopsis'] ?? 'Tidak ada sinopsis.',
+      'isi': kisah['isi'] ?? '',
+      'genres': genreNames, // Simpan sebagai list nama genre
+      'genres_data': genres, // Simpan data lengkap untuk keperluan lain
+    };
+  }).toList();
             
             posts.sort((a, b) {
               final aTime = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime(1970);
@@ -546,17 +575,20 @@ class _ProfilePageState extends State<ProfilePage>
       child: InkWell(
         onTap: () {
           Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => FullStoryPage(
-                title: post['title'],
-                genre: post['genres'],
-                synopsis: post['sinopsis'],
-                fullStory: post['fullStory'],
-                user: username,
-                avatar: avatarUrl ?? '',
-                kisahId: post['id'],
-                needsFullData: post['fullStory']?.isEmpty ?? true,
+  context,
+  MaterialPageRoute(
+    builder: (_) => FullStoryPage(
+      title: post['title'] ?? post['judul'] ?? 'No Title', // Handle both possible keys
+      genre: post['genres'] is List 
+          ? (post['genres'] as List<dynamic>).join(', ')
+          : post['genres']?.toString() ?? '',
+      synopsis: post['sinopsis'] ?? 'No Synopsis',
+      fullStory: post['isi'] ?? post['fullStory'] ?? 'No Content', // Handle both possible keys
+      user: username,
+      avatar: avatarUrl ?? '',
+      kisahId: post['id'],
+      needsFullData: (post['fullStory']?.isEmpty ?? true) && (post['isi']?.isEmpty ?? true),
+
               ),
             ),
           );
@@ -566,6 +598,7 @@ class _ProfilePageState extends State<ProfilePage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -632,16 +665,17 @@ class _ProfilePageState extends State<ProfilePage>
                 ],
               ),
               const SizedBox(height: 8),
-              if (post['genres'] != null && post['genres'].toString().isNotEmpty)
-                Wrap(
-                  spacing: 6,
-                  children: post['genres']
-                      .toString()
-                      .split(', ')
-                      .where((genre) => genre.isNotEmpty)
-                      .map((genre) => Chip(label: Text(genre)))
-                      .toList(),
-                ),
+              if (post['genres'] != null && (post['genres'] as List).isNotEmpty)
+              Wrap(
+                spacing: 6,
+                children: (post['genres'] as List)
+                    .where((genre) => genre.toString().isNotEmpty)
+                    .map((genre) => Chip(
+                          label: Text(genre),
+                          backgroundColor: Colors.blue.shade100,
+                        ))
+                    .toList(),
+              ),
               const SizedBox(height: 4),
               const Text(
                 'Sinopsis:',
