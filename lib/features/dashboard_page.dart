@@ -55,6 +55,28 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  String _formatTime(String? createdAt) {
+    if (createdAt == null) return '';
+    
+    try {
+      final DateTime dateTime = DateTime.parse(createdAt);
+      final DateTime now = DateTime.now();
+      final Duration difference = now.difference(dateTime);
+      
+      if (difference.inDays > 0) {
+        return '${difference.inDays} hari yang lalu';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} jam yang lalu';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} menit yang lalu';
+      } else {
+        return 'Baru saja';
+      }
+    } catch (e) {
+      return createdAt;
+    }
+  }
+
   Future<void> _fetchUserData() async {
     try {
       final token = await _authService.getToken();
@@ -351,7 +373,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   ? 'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(avatarPath.split('/').last)}'
                                   : null;
                               final userName = user['name'] ?? 'Unknown User';
-                              final createdAt = comment['created_at'] ?? '';
+                              final createdAt = _formatTime(comment['created_at'] ?? '');
 
                               return ListTile(
                                 leading: CircleAvatar(
@@ -536,6 +558,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 );
               }
             },
+          formatTime: _formatTime,
         ),
     const SearchPage(),
     const BookmarkPage(),
@@ -563,99 +586,99 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
       drawer: Drawer(
-  child: ListView(
-    padding: EdgeInsets.zero,
-    children: [
-      UserAccountsDrawerHeader(
-        accountName: Text(
-          _userName,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        accountEmail: Text(
-          _isUserOnline ? 'Online' : 'Offline',
-          style: TextStyle(
-            color: _isUserOnline ? Colors.green : Colors.grey,
-          ),
-        ),
-        currentAccountPicture: CircleAvatar(
-          backgroundColor: Colors.white,
-          backgroundImage: _userAvatar != null && _userAvatar!.isNotEmpty
-              ? NetworkImage(
-                  'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(_userAvatar!.split('/').last)}',
-                )
-              : null,
-          child: _userAvatar == null || _userAvatar!.isEmpty
-              ? Icon(Icons.person, size: 40, color: Colors.grey)
-              : null,
-        ),
-        decoration: BoxDecoration(
-          color: Color.fromARGB(255, 159, 186, 188),
-        ),
-      ),
-      ListTile(
-        leading: Icon(Icons.person_outline, color: Colors.grey[700]),
-        title: Text('Profile akun'),
-        onTap: () {
-          Navigator.pop(context);
-          if (context.mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ProfilePage()),
-            );
-          }
-        },
-      ),
-      ListTile(
-        leading: Icon(Icons.info_outline, color: Colors.grey[700]),
-        title: Text('Tentang Kami'),
-        onTap: () {
-          Navigator.pop(context);
-          if (context.mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MyKisahPage()),
-            );
-          }
-        },
-      ),
-      Divider(),
-      ListTile(
-        leading: Icon(Icons.logout, color: Colors.red),
-        title: Text('Logout', style: TextStyle(color: Colors.red)),
-        onTap: () {
-          Navigator.pop(context);
-          if (context.mounted) {
-            showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text('Konfirmasi Logout'),
-                  content: const Text('Apakah Anda yakin ingin logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Batal'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _handleLogout();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                );
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              accountName: Text(
+                _userName,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              accountEmail: Text(
+                _isUserOnline ? 'Online' : 'Offline',
+                style: TextStyle(
+                  color: _isUserOnline ? Colors.green : Colors.grey,
+                ),
+              ),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: Colors.white,
+                backgroundImage: _userAvatar != null && _userAvatar!.isNotEmpty
+                    ? NetworkImage(
+                        'http://127.0.0.1:8000/avatar/${Uri.encodeComponent(_userAvatar!.split('/').last)}',
+                      )
+                    : null,
+                child: _userAvatar == null || _userAvatar!.isEmpty
+                    ? Icon(Icons.person, size: 40, color: Colors.grey)
+                    : null,
+              ),
+              decoration: BoxDecoration(
+                color: Color.fromARGB(255, 159, 186, 188),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.person_outline, color: Colors.grey[700]),
+              title: Text('Profile akun'),
+              onTap: () {
+                Navigator.pop(context);
+                if (context.mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                }
               },
-            );
-          }
-        },
+            ),
+            ListTile(
+              leading: Icon(Icons.info_outline, color: Colors.grey[700]),
+              title: Text('Tentang Kami'),
+              onTap: () {
+                Navigator.pop(context);
+                if (context.mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyKisahPage()),
+                  );
+                }
+              },
+            ),
+            Divider(),
+            ListTile(
+              leading: Icon(Icons.logout, color: Colors.red),
+              title: Text('Logout', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                if (context.mounted) {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Konfirmasi Logout'),
+                        content: const Text('Apakah Anda yakin ingin logout?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Batal'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _handleLogout();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text('Logout'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                }
+              },
+            ),
+          ],
+        ),
       ),
-    ],
-  ),
-),
       body: IndexedStack(index: _selectedIndex, children: _pages()),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -689,6 +712,7 @@ class HomeContent extends StatelessWidget {
   final Function(int, int, int) handleReaction;
   final Function(int, int) handleBookmark;
   final Function(dynamic) onPostTap;
+  final String Function(String?) formatTime;
 
   const HomeContent({
     required this.posts,
@@ -696,6 +720,7 @@ class HomeContent extends StatelessWidget {
     required this.handleReaction,
     required this.handleBookmark,
     required this.onPostTap,
+    required this.formatTime,
     super.key,
   });
 
@@ -746,7 +771,7 @@ class HomeContent extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            post['created_at'] ?? '',
+                            formatTime(post['created_at']),
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.grey,
