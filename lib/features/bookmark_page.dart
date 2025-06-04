@@ -38,6 +38,29 @@ class _BookmarkPageState extends State<BookmarkPage> with RouteAware {
     super.dispose();
   }
 
+  // Add the _formatTime function from profile.dart
+  String _formatTime(String? createdAt) {
+    if (createdAt == null) return '';
+    
+    try {
+      final DateTime dateTime = DateTime.parse(createdAt);
+      final DateTime now = DateTime.now();
+      final Duration difference = now.difference(dateTime);
+      
+      if (difference.inDays > 0) {
+        return '${difference.inDays} hari yang lalu';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} jam yang lalu';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} menit yang lalu';
+      } else {
+        return 'Baru saja';
+      }
+    } catch (e) {
+      return createdAt;
+    }
+  }
+
   Future<void> _fetchBookmarkedStories() async {
     try {
       setState(() {
@@ -311,7 +334,8 @@ class _BookmarkPageState extends State<BookmarkPage> with RouteAware {
                                             ),
                                           ),
                                           Text(
-                                            story['created_at'] ?? '',
+                                            // Use _formatTime here instead of raw timestamp
+                                            _formatTime(story['created_at']),
                                             style: const TextStyle(
                                               fontSize: 12,
                                               color: Colors.grey,
